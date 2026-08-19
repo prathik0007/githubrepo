@@ -1,6 +1,45 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getOpenAIClient } from "@/app/lib/openai";
 
+function getFilePurpose(file: string) {
+  const name = file.toLowerCase();
+
+  if (name.includes("readme")) {
+    return "Project documentation and instructions.";
+  }
+  if (name === "app.py" || name === "main.py") {
+    return "Likely application entry point.";
+  }
+  if (name.includes("model")) {
+    return "Likely contains model or business logic.";
+  }
+  if (name.includes("predict")) {
+    return "Likely contains prediction-related logic.";
+  }
+  if (name.includes("requirement")) {
+    return "Lists Python project dependencies.";
+  }
+  if (name.includes("package.json")) {
+    return "Contains JavaScript project dependencies and scripts.";
+  }
+  if (name.endsWith(".html")) {
+    return "Frontend/user-interface markup.";
+  }
+  if (name.endsWith(".css")) {
+    return "Styles the application's user interface.";
+  }
+  if (
+    name.endsWith(".js") ||
+    name.endsWith(".jsx") ||
+    name.endsWith(".ts") ||
+    name.endsWith(".tsx")
+  ) {
+    return "JavaScript/TypeScript application logic or UI code.";
+  }
+
+  return "Source file that may contain application logic.";
+}
+
 export async function POST(request: NextRequest) {
   let body: any = {};
 
@@ -71,41 +110,36 @@ export async function POST(request: NextRequest) {
         })
         .slice(0, 8);
 
-      const answer = `Repository Overview
-${name} is a software project${
-        description !== "No description available."
-          ? ` described as "${description}"`
-          : ""
-      }.
+      const technologies = [
+        language !== "Unknown" ? language : null,
+      ].filter(Boolean);
 
-Primary Language:
-${language}
+      const importantFileObjects = importantFiles.map((file: string) => ({
+        file,
+        purpose: getFilePurpose(file),
+      }));
 
-Technologies and Project Structure
-The repository contains ${files.length} detected files. The project appears to use ${language} as its primary language.
-
-Important Files
-${
-  importantFiles.length > 0
-    ? importantFiles.map((file: string) => `• ${file}`).join("\n")
-    : "• No obvious entry-point files were detected."
-}
-
-Architecture
-The repository can be understood by starting with its documentation and main application files. The main application or entry-point files should be examined first to understand how user input flows through the system.
-
-Start Here Guide
-1. Read README.md if available.
-2. Identify the main application or entry-point file.
-3. Examine the important backend or business-logic files.
-4. Examine the frontend/templates if the project has a user interface.
-5. Check the dependency/configuration files to understand the technologies used.
-
-Note:
-This is a demo analysis generated locally because the OpenAI API is currently unavailable.`;
+      const analysis = {
+        overview: `${name} is a software project${
+          description !== "No description available."
+            ? ` described as "${description}"`
+            : ""
+        }. The repository contains ${files.length} detected files.`,
+        technologies,
+        importantFiles: importantFileObjects,
+        architecture:
+          "The application can be understood by following its main entry point, business logic, and user interface components.",
+        onboardingGuide: [
+          "Read README.md to understand the project purpose.",
+          "Find and open the main application or entry-point file.",
+          "Examine the main business logic and processing files.",
+          "Explore the frontend or templates if the project has a user interface.",
+          "Review dependency and configuration files to understand the technologies used.",
+        ],
+      };
 
       return NextResponse.json({
-        answer,
+        analysis,
         fallback: true,
         reason: "OpenAI credits or rate limit reached",
       });

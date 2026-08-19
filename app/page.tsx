@@ -10,6 +10,7 @@ export default function Home() {
   const [aiAnswer, setAiAnswer] = useState("");
   const [aiLoading, setAiLoading] = useState(false);
   const [aiFallback, setAiFallback] = useState(false);
+  const [analysis, setAnalysis] = useState<any>(null);
 
   const handleAnalyze = async () => {
     setLoading(true);
@@ -17,6 +18,7 @@ export default function Home() {
     setRepoData(null);
     setAiAnswer("");
     setAiFallback(false);
+    setAnalysis(null);
 
     try {
       const response = await fetch("/api/github", {
@@ -42,6 +44,7 @@ export default function Home() {
       setAiLoading(true);
       setAiAnswer("");
       setAiFallback(false);
+      setAnalysis(null);
 
       try {
         const aiResponse = await fetch("/api/analyze", {
@@ -84,7 +87,8 @@ Explain:
         });
 
         const aiData = await aiResponse.json();
-        setAiAnswer(aiData.answer || "No AI explanation was returned.");
+        setAnalysis(aiData.analysis || null);
+        setAiAnswer(aiData.answer || "");
         setAiFallback(aiData.fallback === true);
       } catch (error) {
         console.error(error);
@@ -266,11 +270,100 @@ Explain:
         )}
       </div>
 
+      {analysis && (
+        <div className="mt-6 space-y-5">
+          {/* Overview */}
+          <div className="rounded-xl border border-zinc-800 bg-zinc-950 p-5">
+            <h5 className="text-lg font-semibold text-white">
+              📋 Repository Overview
+            </h5>
+            <p className="mt-3 leading-7 text-zinc-400">
+              {analysis.overview}
+            </p>
+          </div>
+
+          {/* Technologies */}
+          <div className="rounded-xl border border-zinc-800 bg-zinc-950 p-5">
+            <h5 className="text-lg font-semibold text-white">
+              🛠️ Technologies
+            </h5>
+            <div className="mt-4 flex flex-wrap gap-2">
+              {analysis.technologies?.map(
+                (technology: string) => (
+                  <span
+                    key={technology}
+                    className="rounded-full bg-blue-950 px-3 py-1 text-sm text-blue-300"
+                  >
+                    {technology}
+                  </span>
+                )
+              )}
+            </div>
+          </div>
+
+          {/* Important Files */}
+          <div className="rounded-xl border border-zinc-800 bg-zinc-950 p-5">
+            <h5 className="text-lg font-semibold text-white">
+              📁 Important Files
+            </h5>
+            <div className="mt-4 space-y-3">
+              {analysis.importantFiles?.map(
+                (item: { file: string; purpose: string }) => (
+                  <div
+                    key={item.file}
+                    className="rounded-lg border border-zinc-800 p-4"
+                  >
+                    <p className="font-medium text-blue-400">
+                      {item.file}
+                    </p>
+                    <p className="mt-1 text-sm text-zinc-400">
+                      {item.purpose}
+                    </p>
+                  </div>
+                )
+              )}
+            </div>
+          </div>
+
+          {/* Architecture */}
+          <div className="rounded-xl border border-zinc-800 bg-zinc-950 p-5">
+            <h5 className="text-lg font-semibold text-white">
+              🏗️ Architecture
+            </h5>
+            <p className="mt-3 leading-7 text-zinc-400">
+              {analysis.architecture}
+            </p>
+          </div>
+
+          {/* Onboarding */}
+          <div className="rounded-xl border border-zinc-800 bg-zinc-950 p-5">
+            <h5 className="text-lg font-semibold text-white">
+              🚀 Start Here
+            </h5>
+            <ol className="mt-4 space-y-3">
+              {analysis.onboardingGuide?.map(
+                (step: string, index: number) => (
+                  <li
+                    key={index}
+                    className="flex gap-3 text-sm text-zinc-400"
+                  >
+                    <span className="font-semibold text-blue-400">
+                      {index + 1}.
+                    </span>
+                    <span>{step}</span>
+                  </li>
+                )
+              )}
+            </ol>
+          </div>
+        </div>
+      )}
+
       {aiLoading ? (
         <div className="mt-4 rounded-lg bg-zinc-950 p-5 text-zinc-400">
           🤖 AI is analyzing this repository...
         </div>
-      ) : aiAnswer ? (
+      ) : analysis ? null : aiAnswer ? (
         <div className="mt-4 whitespace-pre-wrap rounded-lg bg-zinc-950 p-5 text-left text-sm leading-7 text-zinc-300">
           {aiAnswer}
         </div>
