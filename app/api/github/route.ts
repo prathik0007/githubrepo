@@ -18,6 +18,7 @@ const ALLOWED_EXTENSIONS = [
   ".rs",
   ".md",
   ".json",
+  ".txt",
 ];
 
 const IGNORED_FILES = [
@@ -26,6 +27,80 @@ const IGNORED_FILES = [
   ".env.production",
   ".env.development",
 ];
+
+function getFileScore(path: string) {
+  const lowerPath = path.toLowerCase();
+  const fileName = lowerPath.split("/").pop() || "";
+  let score = 10;
+
+  // Important project documentation/configuration
+  if (fileName === "readme.md") {
+    score += 100;
+  }
+  if (fileName === "package.json") {
+    score += 90;
+  }
+  if (fileName === "requirements.txt") {
+    score += 90;
+  }
+  if (fileName === "pyproject.toml") {
+    score += 90;
+  }
+  if (fileName === "pom.xml") {
+    score += 90;
+  }
+
+  // Common application entry points
+  if (
+    fileName === "app.py" ||
+    fileName === "main.py" ||
+    fileName === "server.py" ||
+    fileName === "index.js" ||
+    fileName === "server.js" ||
+    fileName === "app.js" ||
+    fileName === "main.js" ||
+    fileName === "index.ts" ||
+    fileName === "main.ts"
+  ) {
+    score += 80;
+  }
+
+  // Important frontend entry points
+  if (
+    fileName === "app.jsx" ||
+    fileName === "app.tsx" ||
+    fileName === "page.tsx" ||
+    fileName === "layout.tsx"
+  ) {
+    score += 70;
+  }
+
+  // Files inside common source directories
+  if (
+    lowerPath.startsWith("src/") ||
+    lowerPath.startsWith("app/") ||
+    lowerPath.startsWith("components/") ||
+    lowerPath.startsWith("routes/")
+  ) {
+    score += 40;
+  }
+
+  // ML-related files
+  if (
+    fileName.includes("model") ||
+    fileName.includes("predict") ||
+    fileName.includes("train")
+  ) {
+    score += 30;
+  }
+
+  // Avoid unnecessarily large source files
+  if (path.length > 100) {
+    score -= 10;
+  }
+
+  return score;
+}
 
 function isUsefulFile(path: string) {
   const lowerPath = path.toLowerCase();
@@ -137,7 +212,17 @@ export async function POST(request: NextRequest) {
       .filter((file: { path: string; size: number }) =>
         isUsefulFile(file.path)
       )
-      .slice(0, 10);
+      .map((file: { path: string; size: number }) => ({
+        ...file,
+        score: getFileScore(file.path),
+      }))
+      .sort(
+        (
+          a: { score: number },
+          b: { score: number }
+        ) => b.score - a.score
+      )
+      .slice(0, 15);
 
     // 8. Fetch contents of selected files
     const filesWithContent = await Promise.all(
