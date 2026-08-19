@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import ArchitectureDiagram from "./components/ArchitectureDiagram";
 
 export default function Home() {
   const [repoUrl, setRepoUrl] = useState("");
@@ -333,6 +334,7 @@ Explain:
             <p className="mt-3 leading-7 text-zinc-400">
               {analysis.architecture}
             </p>
+            <ArchitectureDiagram />
           </div>
 
           {/* Onboarding */}
