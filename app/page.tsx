@@ -4,40 +4,100 @@ import { useState } from "react";
 
 export default function Home() {
   const [repoUrl, setRepoUrl] = useState("");
-const [repoData, setRepoData] = useState<any>(null);
-const [loading, setLoading] = useState(false);
-const [error, setError] = useState("");
+  const [repoData, setRepoData] = useState<any>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+  const [aiAnswer, setAiAnswer] = useState("");
+  const [aiLoading, setAiLoading] = useState(false);
+  const [aiFallback, setAiFallback] = useState(false);
 
-const handleAnalyze = async () => {
-  setLoading(true);
-  setError("");
-  setRepoData(null);
+  const handleAnalyze = async () => {
+    setLoading(true);
+    setError("");
+    setRepoData(null);
+    setAiAnswer("");
+    setAiFallback(false);
 
-  try {
-    const response = await fetch("/api/github", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        url: repoUrl,
-      }),
-    });
+    try {
+      const response = await fetch("/api/github", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          url: repoUrl,
+        }),
+      });
 
-    const data = await response.json();
+      const data = await response.json();
 
-    if (!response.ok) {
-      setError(data.error || "Something went wrong");
-      return;
+      if (!response.ok) {
+        setError(data.error || "Something went wrong");
+        return;
+      }
+
+      setRepoData(data);
+
+      // Ask AI to explain the repository
+      setAiLoading(true);
+      setAiAnswer("");
+      setAiFallback(false);
+
+      try {
+        const aiResponse = await fetch("/api/analyze", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            question: `Analyze this GitHub repository and explain it to a developer who is seeing the project for the first time.
+Repository name: ${data.name}
+Description: ${data.description || "No description available"}
+Primary language: ${data.language || "Unknown"}
+Important files:
+${data.files
+  .slice(0, 15)
+  .map((file: { path: string }) => file.path)
+  .join("\n")}
+Source code:
+${data.sourceFiles
+  .map(
+    (file: { path: string; content: string }) =>
+      `\n--- ${file.path} ---\n${file.content}`
+  )
+  .join("\n")}
+
+Explain:
+1. What this project does
+2. Main technologies used
+3. Important files and their purpose
+4. How the application works
+5. The basic architecture
+6. Where a new developer should start`,
+            repository: {
+              name: data.name,
+              description: data.description,
+              language: data.language,
+              files: data.files,
+            },
+          }),
+        });
+
+        const aiData = await aiResponse.json();
+        setAiAnswer(aiData.answer || "No AI explanation was returned.");
+        setAiFallback(aiData.fallback === true);
+      } catch (error) {
+        console.error(error);
+        setAiAnswer("Unable to generate AI explanation.");
+      } finally {
+        setAiLoading(false);
+      }
+    } catch (error) {
+      setError("Unable to connect to the server");
+    } finally {
+      setLoading(false);
     }
-
-    setRepoData(data);
-  } catch (error) {
-    setError("Unable to connect to the server");
-  } finally {
-    setLoading(false);
-  }
-};
+  };
 
   return (
     <main className="min-h-screen bg-zinc-950 text-white">
@@ -83,18 +143,18 @@ const handleAnalyze = async () => {
           />
 
           <button
-  onClick={handleAnalyze}
-  disabled={loading}
-  className="h-14 rounded-xl bg-blue-600 px-7 font-semibold transition hover:bg-blue-500 disabled:cursor-not-allowed disabled:opacity-50"
->
-  {loading ? "Analyzing..." : "Analyze Repository"}
-</button>
-{/* Repository Result */}
-{error && (
-  <div className="mt-8 w-full max-w-2xl rounded-xl border border-red-800 bg-red-950/30 p-5 text-red-300">
-    {error}
-  </div>
-)}
+            onClick={handleAnalyze}
+            disabled={loading}
+            className="h-14 rounded-xl bg-blue-600 px-7 font-semibold transition hover:bg-blue-500 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            {loading ? "Analyzing..." : "Analyze Repository"}
+          </button>
+          {/* Repository Result */}
+          {error && (
+            <div className="mt-8 w-full max-w-2xl rounded-xl border border-red-800 bg-red-950/30 p-5 text-red-300">
+              {error}
+            </div>
+          )}
 
 {repoData && (
   <div className="mt-8 w-full max-w-2xl rounded-xl border border-zinc-700 bg-zinc-900 p-6 text-left">
@@ -191,6 +251,34 @@ const handleAnalyze = async () => {
           )
         )}
       </div>
+    </div>
+
+    {/* AI Explanation */}
+    <div className="mt-8 border-t border-zinc-700 pt-6">
+      <div className="flex items-center justify-between">
+        <h4 className="text-lg font-semibold text-white">
+          AI Explanation
+        </h4>
+        {aiFallback && (
+          <span className="rounded-full border border-yellow-700 bg-yellow-950/40 px-3 py-1 text-xs text-yellow-400">
+            Using demo answer
+          </span>
+        )}
+      </div>
+
+      {aiLoading ? (
+        <div className="mt-4 rounded-lg bg-zinc-950 p-5 text-zinc-400">
+          🤖 AI is analyzing this repository...
+        </div>
+      ) : aiAnswer ? (
+        <div className="mt-4 whitespace-pre-wrap rounded-lg bg-zinc-950 p-5 text-left text-sm leading-7 text-zinc-300">
+          {aiAnswer}
+        </div>
+      ) : (
+        <div className="mt-4 rounded-lg bg-zinc-950 p-5 text-zinc-500">
+          No AI explanation available yet.
+        </div>
+      )}
     </div>
   </div>
 )}

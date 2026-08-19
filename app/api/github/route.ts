@@ -26,6 +26,7 @@ const IGNORED_FILES = [
   ".env.local",
   ".env.production",
   ".env.development",
+  "users.json",
 ];
 
 function getFileScore(path: string) {
