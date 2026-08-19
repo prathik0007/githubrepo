@@ -4,10 +4,40 @@ import { useState } from "react";
 
 export default function Home() {
   const [repoUrl, setRepoUrl] = useState("");
+const [repoData, setRepoData] = useState<any>(null);
+const [loading, setLoading] = useState(false);
+const [error, setError] = useState("");
 
-  const handleAnalyze = () => {
-    console.log("Repository URL:", repoUrl);
-  };
+const handleAnalyze = async () => {
+  setLoading(true);
+  setError("");
+  setRepoData(null);
+
+  try {
+    const response = await fetch("/api/github", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        url: repoUrl,
+      }),
+    });
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      setError(data.error || "Something went wrong");
+      return;
+    }
+
+    setRepoData(data);
+  } catch (error) {
+    setError("Unable to connect to the server");
+  } finally {
+    setLoading(false);
+  }
+};
 
   return (
     <main className="min-h-screen bg-zinc-950 text-white">
@@ -53,11 +83,65 @@ export default function Home() {
           />
 
           <button
-            onClick={handleAnalyze}
-            className="h-14 rounded-xl bg-blue-600 px-7 font-semibold transition hover:bg-blue-500"
-          >
-            Analyze Repository
-          </button>
+  onClick={handleAnalyze}
+  disabled={loading}
+  className="h-14 rounded-xl bg-blue-600 px-7 font-semibold transition hover:bg-blue-500 disabled:cursor-not-allowed disabled:opacity-50"
+>
+  {loading ? "Analyzing..." : "Analyze Repository"}
+</button>
+{/* Repository Result */}
+{error && (
+  <div className="mt-8 w-full max-w-2xl rounded-xl border border-red-800 bg-red-950/30 p-5 text-red-300">
+    {error}
+  </div>
+)}
+
+{repoData && (
+  <div className="mt-8 w-full max-w-2xl rounded-xl border border-zinc-700 bg-zinc-900 p-6 text-left">
+    <h3 className="text-2xl font-bold text-white">
+      {repoData.name}
+    </h3>
+
+    <p className="mt-2 text-zinc-400">
+      {repoData.description || "No description available."}
+    </p>
+
+    <div className="mt-5 grid grid-cols-2 gap-4 sm:grid-cols-4">
+      <div>
+        <p className="text-sm text-zinc-500">Language</p>
+        <p className="mt-1 font-semibold">
+          {repoData.language || "Unknown"}
+        </p>
+      </div>
+
+      <div>
+        <p className="text-sm text-zinc-500">Stars</p>
+        <p className="mt-1 font-semibold">
+          ⭐ {repoData.stars}
+        </p>
+      </div>
+
+      <div>
+        <p className="text-sm text-zinc-500">Forks</p>
+        <p className="mt-1 font-semibold">
+          🍴 {repoData.forks}
+        </p>
+      </div>
+
+      <div>
+        <p className="text-sm text-zinc-500">Repository</p>
+        <a
+          href={repoData.url}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="mt-1 block font-semibold text-blue-400 hover:underline"
+        >
+          View on GitHub
+        </a>
+      </div>
+    </div>
+  </div>
+)}
         </div>
 
         {/* Features */}
