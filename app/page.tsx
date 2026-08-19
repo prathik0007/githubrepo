@@ -140,6 +140,29 @@ const handleAnalyze = async () => {
         </a>
       </div>
     </div>
+
+    <div className="mt-8 border-t border-zinc-700 pt-6">
+      <h4 className="text-lg font-semibold text-white">
+        Repository Files
+      </h4>
+      <div className="mt-4 max-h-64 overflow-y-auto rounded-lg bg-zinc-950 p-4">
+        {repoData.files?.map(
+          (file: { path: string; size: number }) => (
+            <div
+              key={file.path}
+              className="flex items-center justify-between border-b border-zinc-800 py-2 last:border-b-0"
+            >
+              <span className="text-sm text-zinc-300">
+                📄 {file.path}
+              </span>
+              <span className="text-xs text-zinc-500">
+                {file.size} bytes
+              </span>
+            </div>
+          )
+        )}
+      </div>
+    </div>
   </div>
 )}
         </div>

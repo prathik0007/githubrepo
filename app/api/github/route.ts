@@ -2,8 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 
 export async function POST(request: NextRequest) {
   try {
+    // 1. Get the URL sent by the frontend
     const body = await request.json();
-
     const url = body.url;
 
     if (!url) {
@@ -13,6 +13,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // 2. Validate the GitHub URL
     const parsedUrl = new URL(url);
 
     if (parsedUrl.hostname !== "github.com") {
@@ -22,6 +23,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // 3. Extract owner and repository name
     const parts = parsedUrl.pathname.split("/").filter(Boolean);
 
     if (parts.length < 2) {
@@ -34,7 +36,8 @@ export async function POST(request: NextRequest) {
     const owner = parts[0];
     const repo = parts[1].replace(".git", "");
 
-    const response = await fetch(
+    // 4. Get repository information
+    const repoResponse = await fetch(
       `https://api.github.com/repos/${owner}/${repo}`,
       {
         headers: {
@@ -43,23 +46,53 @@ export async function POST(request: NextRequest) {
       }
     );
 
-    if (!response.ok) {
+    if (!repoResponse.ok) {
       return NextResponse.json(
         { error: "Repository not found" },
-        { status: response.status }
+        { status: repoResponse.status }
       );
     }
 
-    const data = await response.json();
+    const repoData = await repoResponse.json();
 
+    // 5. Get the repository file tree
+    const treeResponse = await fetch(
+      `https://api.github.com/repos/${owner}/${repo}/git/trees/${repoData.default_branch}?recursive=1`,
+      {
+        headers: {
+          Accept: "application/vnd.github+json",
+        },
+      }
+    );
+
+    if (!treeResponse.ok) {
+      return NextResponse.json(
+        { error: "Unable to retrieve repository files" },
+        { status: treeResponse.status }
+      );
+    }
+
+    const treeData = await treeResponse.json();
+
+    // 6. Keep only files, not folders
+    const files = treeData.tree
+      .filter((item: any) => item.type === "blob")
+      .map((item: any) => ({
+        path: item.path,
+        size: item.size || 0,
+      }));
+
+    // 7. Return repository + file information
     return NextResponse.json({
-      name: data.name,
-      fullName: data.full_name,
-      description: data.description,
-      language: data.language,
-      stars: data.stargazers_count,
-      forks: data.forks_count,
-      url: data.html_url,
+      name: repoData.name,
+      fullName: repoData.full_name,
+      description: repoData.description,
+      language: repoData.language,
+      stars: repoData.stargazers_count,
+      forks: repoData.forks_count,
+      url: repoData.html_url,
+      defaultBranch: repoData.default_branch,
+      files: files,
     });
   } catch (error) {
     console.error(error);
