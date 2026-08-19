@@ -163,6 +163,35 @@ const handleAnalyze = async () => {
         )}
       </div>
     </div>
+
+    <div className="mt-8 border-t border-zinc-700 pt-6">
+      <h4 className="text-lg font-semibold text-white">
+        Source Files
+      </h4>
+      <div className="mt-4 space-y-4">
+        {repoData.sourceFiles?.map(
+          (file: {
+            path: string;
+            size: number;
+            content: string;
+          }) => (
+            <div
+              key={file.path}
+              className="overflow-hidden rounded-lg border border-zinc-800 bg-zinc-950"
+            >
+              <div className="border-b border-zinc-800 px-4 py-3">
+                <span className="text-sm font-semibold text-blue-400">
+                  📄 {file.path}
+                </span>
+              </div>
+              <pre className="max-h-80 overflow-auto p-4 text-left text-xs leading-6 text-zinc-300">
+                <code>{file.content}</code>
+              </pre>
+            </div>
+          )
+        )}
+      </div>
+    </div>
   </div>
 )}
         </div>

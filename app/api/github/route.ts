@@ -1,8 +1,58 @@
 import { NextRequest, NextResponse } from "next/server";
 
+const ALLOWED_EXTENSIONS = [
+  ".py",
+  ".js",
+  ".jsx",
+  ".ts",
+  ".tsx",
+  ".html",
+  ".css",
+  ".java",
+  ".c",
+  ".cpp",
+  ".cs",
+  ".php",
+  ".rb",
+  ".go",
+  ".rs",
+  ".md",
+  ".json",
+];
+
+const IGNORED_FILES = [
+  ".env",
+  ".env.local",
+  ".env.production",
+  ".env.development",
+];
+
+function isUsefulFile(path: string) {
+  const lowerPath = path.toLowerCase();
+
+  // Ignore environment files
+  if (IGNORED_FILES.includes(lowerPath)) {
+    return false;
+  }
+
+  // Ignore compiled/cache files
+  if (
+    lowerPath.endsWith(".pyc") ||
+    lowerPath.includes("node_modules/") ||
+    lowerPath.includes(".git/")
+  ) {
+    return false;
+  }
+
+  // Only allow supported source/documentation files
+  return ALLOWED_EXTENSIONS.some((extension) =>
+    lowerPath.endsWith(extension)
+  );
+}
+
 export async function POST(request: NextRequest) {
   try {
-    // 1. Get the URL sent by the frontend
+    // 1. Get the URL from the frontend
     const body = await request.json();
     const url = body.url;
 
@@ -13,7 +63,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // 2. Validate the GitHub URL
+    // 2. Validate GitHub URL
     const parsedUrl = new URL(url);
 
     if (parsedUrl.hostname !== "github.com") {
@@ -23,7 +73,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // 3. Extract owner and repository name
+    // 3. Extract owner and repository
     const parts = parsedUrl.pathname.split("/").filter(Boolean);
 
     if (parts.length < 2) {
@@ -55,7 +105,7 @@ export async function POST(request: NextRequest) {
 
     const repoData = await repoResponse.json();
 
-    // 5. Get the repository file tree
+    // 5. Get repository tree
     const treeResponse = await fetch(
       `https://api.github.com/repos/${owner}/${repo}/git/trees/${repoData.default_branch}?recursive=1`,
       {
@@ -74,15 +124,82 @@ export async function POST(request: NextRequest) {
 
     const treeData = await treeResponse.json();
 
-    // 6. Keep only files, not folders
-    const files = treeData.tree
+    // 6. Get all files
+    const allFiles = treeData.tree
       .filter((item: any) => item.type === "blob")
       .map((item: any) => ({
         path: item.path,
         size: item.size || 0,
       }));
 
-    // 7. Return repository + file information
+    // 7. Select useful files for analysis
+    const usefulFiles = allFiles
+      .filter((file: { path: string; size: number }) =>
+        isUsefulFile(file.path)
+      )
+      .slice(0, 10);
+
+    // 8. Fetch contents of selected files
+    const filesWithContent = await Promise.all(
+      usefulFiles.map(async (file: { path: string; size: number }) => {
+        try {
+          // Don't download extremely large files
+          if (file.size > 100000) {
+            return {
+              path: file.path,
+              size: file.size,
+              content: "[File too large to analyze]",
+            };
+          }
+
+          const contentResponse = await fetch(
+            `https://api.github.com/repos/${owner}/${repo}/contents/${file.path}?ref=${repoData.default_branch}`,
+            {
+              headers: {
+                Accept: "application/vnd.github+json",
+              },
+            }
+          );
+
+          if (!contentResponse.ok) {
+            return {
+              path: file.path,
+              size: file.size,
+              content: "[Unable to retrieve file]",
+            };
+          }
+
+          const contentData = await contentResponse.json();
+
+          if (!contentData.content) {
+            return {
+              path: file.path,
+              size: file.size,
+              content: "[No text content available]",
+            };
+          }
+
+          const content = Buffer.from(
+            contentData.content,
+            "base64"
+          ).toString("utf-8");
+
+          return {
+            path: file.path,
+            size: file.size,
+            content,
+          };
+        } catch {
+          return {
+            path: file.path,
+            size: file.size,
+            content: "[Error reading file]",
+          };
+        }
+      })
+    );
+
+    // 9. Return repository information + files + source code
     return NextResponse.json({
       name: repoData.name,
       fullName: repoData.full_name,
@@ -92,7 +209,10 @@ export async function POST(request: NextRequest) {
       forks: repoData.forks_count,
       url: repoData.html_url,
       defaultBranch: repoData.default_branch,
-      files: files,
+
+      files: allFiles,
+
+      sourceFiles: filesWithContent,
     });
   } catch (error) {
     console.error(error);
