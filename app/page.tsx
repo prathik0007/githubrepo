@@ -4,6 +4,7 @@ import { useState } from "react";
 import ArchitectureDiagram from "./components/ArchitectureDiagram";
 import CodeViewer from "./components/CodeViewer";
 import FileTree from "./components/FileTree";
+import RepositorySearch from "./components/RepositorySearch";
 
 export default function Home() {
   const [repoUrl, setRepoUrl] = useState("");
@@ -347,10 +348,17 @@ Please explain:
     </div>
 
     <div className="mt-8 border-t border-zinc-700 pt-6">
-      <FileTree
-        files={repoData.files || []}
-        onSelectFile={handleFileSelect}
-      />
+      <div className="space-y-4">
+        <RepositorySearch
+          files={repoData.files || []}
+          onSelectFile={handleFileSelect}
+        />
+
+        <FileTree
+          files={repoData.files || []}
+          onSelectFile={handleFileSelect}
+        />
+      </div>
     </div>
 
     <div className="mt-8 border-t border-zinc-700 pt-6">
