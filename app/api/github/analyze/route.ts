@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getOpenAIClient } from "@/app/lib/openai";
+import { getGeminiClient } from "@/app/lib/gemini";
 
 export async function POST(request: NextRequest) {
   try {
@@ -14,18 +14,19 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const openai = getOpenAIClient();
+    const gemini = getGeminiClient();
 
-    const response = await openai.responses.create({
-      model: "gpt-5.6",
-      input: question,
+    const response = await gemini.models.generateContent({
+      model: "gemini-2.5-flash",
+      contents: question,
     });
 
     return NextResponse.json({
-      answer: response.output_text,
+      answer: response.text,
+      fallback: false,
     });
   } catch (error) {
-    console.error(error);
+    console.error("Gemini API error:", error);
 
     const message =
       error instanceof Error ? error.message : "AI request failed";

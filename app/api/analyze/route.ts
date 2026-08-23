@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getOpenAIClient } from "@/app/lib/openai";
+import { getGeminiClient } from "@/app/lib/gemini";
 
 function detectProjectType(files: string[]) {
   const lowerFiles = files.map((file) => file.toLowerCase());
@@ -396,18 +396,19 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const openai = getOpenAIClient();
+    const gemini = getGeminiClient();
 
-    const response = await openai.responses.create({
-      model: "gpt-5.6",
-      input: question,
+    const response = await gemini.models.generateContent({
+      model: "gemini-2.5-flash",
+      contents: question,
     });
 
     return NextResponse.json({
-      answer: response.output_text,
+      answer: response.text,
+      fallback: false,
     });
   } catch (error) {
-    console.error(error);
+    console.error("Gemini API error:", error);
 
     const message =
       error instanceof Error ? error.message : "AI request failed";
@@ -468,7 +469,7 @@ What to look for:
 Beginner tip:
 Start by identifying the main class or function in this file, then follow the methods it calls to understand the execution flow.`,
           fallback: true,
-          reason: "OpenAI credits or rate limit reached",
+          reason: "AI credits or rate limit reached",
         });
       }
 
@@ -530,7 +531,7 @@ Start by identifying the main class or function in this file, then follow the me
       return NextResponse.json({
         analysis,
         fallback: true,
-        reason: "OpenAI credits or rate limit reached",
+        reason: "AI credits or rate limit reached",
       });
     }
 

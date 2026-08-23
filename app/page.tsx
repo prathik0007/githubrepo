@@ -15,15 +15,12 @@ export default function Home() {
   const [error, setError] = useState("");
   const [aiAnswer, setAiAnswer] = useState("");
   const [aiLoading, setAiLoading] = useState(false);
-  const [aiFallback, setAiFallback] = useState(false);
   const [analysis, setAnalysis] = useState<any>(null);
   const [selectedFile, setSelectedFile] = useState<any>(null);
   const [highlightLine, setHighlightLine] =
     useState<number | null>(null);
   const [fileExplanation, setFileExplanation] = useState("");
   const [fileExplaining, setFileExplaining] = useState(false);
-  const [fileExplanationFallback, setFileExplanationFallback] =
-    useState(false);
   const technologyFiles = repoData
     ? [...(repoData.files || []), ...(repoData.sourceFiles || [])]
     : [];
@@ -69,12 +66,10 @@ export default function Home() {
     setError("");
     setRepoData(null);
     setAiAnswer("");
-    setAiFallback(false);
     setAnalysis(null);
     setSelectedFile(null);
     setHighlightLine(null);
     setFileExplanation("");
-    setFileExplanationFallback(false);
 
     try {
       const response = await fetch("/api/github", {
@@ -99,7 +94,6 @@ export default function Home() {
       // Ask AI to explain the repository
       setAiLoading(true);
       setAiAnswer("");
-      setAiFallback(false);
       setAnalysis(null);
 
       try {
@@ -145,7 +139,6 @@ Explain:
         const aiData = await aiResponse.json();
         setAnalysis(aiData.analysis || null);
         setAiAnswer(aiData.answer || "");
-        setAiFallback(aiData.fallback === true);
       } catch (error) {
         console.error(error);
         setAiAnswer("Unable to generate AI explanation.");
@@ -166,7 +159,6 @@ Explain:
 
     setFileExplaining(true);
     setFileExplanation("");
-    setFileExplanationFallback(false);
 
     try {
       const response = await fetch("/api/analyze", {
@@ -204,7 +196,6 @@ Please explain:
         setFileExplanation(data.answer);
       }
 
-      setFileExplanationFallback(data.fallback === true);
     } catch (error) {
       console.error(error);
       setFileExplanation("Unable to generate an explanation for this file.");
@@ -242,7 +233,6 @@ Please explain:
         content: "This file type cannot be displayed in the code viewer.",
       });
       setFileExplanation("");
-      setFileExplanationFallback(false);
       return;
     }
 
@@ -252,7 +242,6 @@ Please explain:
     });
 
     setFileExplanation("");
-    setFileExplanationFallback(false);
 
     try {
       const [owner, repo] = (repoData.fullName || "").split("/");
@@ -419,7 +408,6 @@ Please explain:
             setSelectedFile(file);
             setHighlightLine(lineNumber);
             setFileExplanation("");
-            setFileExplanationFallback(false);
           }}
         />
 
@@ -485,14 +473,8 @@ Please explain:
           <div className="mt-5 rounded-xl border border-zinc-800 bg-zinc-950 p-5">
             <div className="flex items-center justify-between">
               <h5 className="text-lg font-semibold text-white">
-                🤖 File Explanation
+                🤖 Gemini File Explanation
               </h5>
-
-              {fileExplanationFallback && (
-                <span className="rounded-full border border-yellow-700 bg-yellow-950/40 px-3 py-1 text-xs text-yellow-400">
-                  Demo answer
-                </span>
-              )}
             </div>
 
             <div className="mt-4 whitespace-pre-wrap text-sm leading-7 text-zinc-300">
@@ -507,13 +489,8 @@ Please explain:
     <div className="mt-8 border-t border-zinc-700 pt-6">
       <div className="flex items-center justify-between">
         <h4 className="text-lg font-semibold text-white">
-          AI Explanation
+          ✨ Gemini AI Explanation
         </h4>
-        {aiFallback && (
-          <span className="rounded-full border border-yellow-700 bg-yellow-950/40 px-3 py-1 text-xs text-yellow-400">
-            Using demo answer
-          </span>
-        )}
       </div>
 
       {analysis && (
