@@ -426,6 +426,52 @@ export async function POST(request: NextRequest) {
       message.includes("429") ||
       message.toLowerCase().includes("no credits remaining")
     ) {
+      const file = body.file;
+
+      if (file) {
+        const fileName = file.path.toLowerCase();
+
+        let purpose =
+          "This file appears to contain application source code.";
+
+        if (fileName.includes("controller")) {
+          purpose =
+            "This file appears to handle incoming requests and coordinate application actions.";
+        } else if (fileName.includes("model")) {
+          purpose =
+            "This file appears to define application data models and business rules.";
+        } else if (fileName.includes("route")) {
+          purpose =
+            "This file appears to define application routes and map requests to controllers or handlers.";
+        } else if (fileName.includes("gemfile")) {
+          purpose = "This file defines the Ruby dependencies used by the project.";
+        } else if (fileName.includes("application.rb")) {
+          purpose =
+            "This file contains the main Rails application configuration.";
+        } else if (fileName.includes("readme")) {
+          purpose =
+            "This file documents the project and usually explains its purpose, setup, and usage.";
+        }
+
+        return NextResponse.json({
+          answer: `File: ${file.path}
+
+Purpose:
+${purpose}
+
+What to look for:
+• Identify the main class, functions, or methods.
+• Check what other files or libraries this file uses.
+• Look at the inputs it receives and the outputs it produces.
+• Determine how this file fits into the overall application.
+
+Beginner tip:
+Start by identifying the main class or function in this file, then follow the methods it calls to understand the execution flow.`,
+          fallback: true,
+          reason: "OpenAI credits or rate limit reached",
+        });
+      }
+
       const repository = body.repository;
       const name = repository?.name || "Unknown repository";
       const description =

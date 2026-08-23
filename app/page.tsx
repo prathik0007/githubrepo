@@ -14,6 +14,10 @@ export default function Home() {
   const [aiFallback, setAiFallback] = useState(false);
   const [analysis, setAnalysis] = useState<any>(null);
   const [selectedFile, setSelectedFile] = useState<any>(null);
+  const [fileExplanation, setFileExplanation] = useState("");
+  const [fileExplaining, setFileExplaining] = useState(false);
+  const [fileExplanationFallback, setFileExplanationFallback] =
+    useState(false);
 
   const handleAnalyze = async () => {
     setLoading(true);
@@ -23,6 +27,8 @@ export default function Home() {
     setAiFallback(false);
     setAnalysis(null);
     setSelectedFile(null);
+    setFileExplanation("");
+    setFileExplanationFallback(false);
 
     try {
       const response = await fetch("/api/github", {
@@ -104,6 +110,60 @@ Explain:
       setError("Unable to connect to the server");
     } finally {
       setLoading(false);
+    }
+  };
+
+  const explainFile = async () => {
+    if (!selectedFile) {
+      return;
+    }
+
+    setFileExplaining(true);
+    setFileExplanation("");
+    setFileExplanationFallback(false);
+
+    try {
+      const response = await fetch("/api/analyze", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          question: `
+Explain this source code file to a developer who is unfamiliar with the repository.
+
+File:
+${selectedFile.path}
+
+Source code:
+${selectedFile.content}
+
+Please explain:
+1. What this file does
+2. Its main responsibilities
+3. Important classes, functions, or methods
+4. How it connects to the rest of the application
+5. What a beginner should understand first
+        `,
+          file: {
+            path: selectedFile.path,
+            content: selectedFile.content,
+          },
+        }),
+      });
+
+      const data = await response.json();
+
+      if (data.answer) {
+        setFileExplanation(data.answer);
+      }
+
+      setFileExplanationFallback(data.fallback === true);
+    } catch (error) {
+      console.error(error);
+      setFileExplanation("Unable to generate an explanation for this file.");
+    } finally {
+      setFileExplaining(false);
     }
   };
 
@@ -225,6 +285,8 @@ Explain:
 
                 if (sourceFile) {
                   setSelectedFile(sourceFile);
+                            setFileExplanation("");
+                            setFileExplanationFallback(false);
                 }
               }}
               key={file.path}
@@ -288,7 +350,29 @@ Explain:
         <CodeViewer
           fileName={selectedFile.path}
           content={selectedFile.content}
+          onExplain={explainFile}
+          explaining={fileExplaining}
         />
+
+        {fileExplanation && (
+          <div className="mt-5 rounded-xl border border-zinc-800 bg-zinc-950 p-5">
+            <div className="flex items-center justify-between">
+              <h5 className="text-lg font-semibold text-white">
+                🤖 File Explanation
+              </h5>
+
+              {fileExplanationFallback && (
+                <span className="rounded-full border border-yellow-700 bg-yellow-950/40 px-3 py-1 text-xs text-yellow-400">
+                  Demo answer
+                </span>
+              )}
+            </div>
+
+            <div className="mt-4 whitespace-pre-wrap text-sm leading-7 text-zinc-300">
+              {fileExplanation}
+            </div>
+          </div>
+        )}
       </div>
     )}
 
