@@ -342,21 +342,54 @@ Explain:
             <h5 className="text-lg font-semibold text-white">
               🚀 Start Here
             </h5>
-            <ol className="mt-4 space-y-3">
+            <div className="mt-5 space-y-4">
               {analysis.onboardingGuide?.map(
-                (step: string, index: number) => (
-                  <li
-                    key={index}
-                    className="flex gap-3 text-sm text-zinc-400"
+                (
+                  step: {
+                    file: string;
+                    title: string;
+                    description: string;
+                  },
+                  index: number
+                ) => (
+                  <div
+                    key={`${step.file}-${index}`}
+                    className="rounded-lg border border-zinc-800 p-4"
                   >
-                    <span className="font-semibold text-blue-400">
-                      {index + 1}.
-                    </span>
-                    <span>{step}</span>
-                  </li>
+                    <div className="flex items-start gap-3">
+                      <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-blue-950 text-sm font-semibold text-blue-400">
+                        {index + 1}
+                      </span>
+
+                      <div className="min-w-0">
+                        <h6 className="font-semibold text-white">
+                          {step.title}
+                        </h6>
+
+                        <p className="mt-1 text-sm leading-6 text-zinc-400">
+                          {step.description}
+                        </p>
+
+                        <div className="mt-3 inline-flex rounded-md bg-zinc-900 px-3 py-1.5">
+                          <code className="text-xs text-blue-400">
+                            📄 {step.file}
+                          </code>
+                        </div>
+
+                        <a
+                          href={`https://github.com/${repoData.fullName}/blob/${repoData.defaultBranch}/${step.file}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="mt-3 block text-sm font-medium text-blue-400 hover:underline"
+                        >
+                          View on GitHub →
+                        </a>
+                      </div>
+                    </div>
+                  </div>
                 )
               )}
-            </ol>
+            </div>
           </div>
         </div>
       )}

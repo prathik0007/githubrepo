@@ -153,6 +153,94 @@ function createArchitecture(projectType: string) {
   };
 }
 
+function createOnboardingGuide(files: string[]) {
+  const guide: {
+    file: string;
+    title: string;
+    description: string;
+  }[] = [];
+
+  const readme = files.find((file) =>
+    file.toLowerCase().endsWith("readme.md")
+  );
+
+  const entryPoint = files.find((file) => {
+    const name = file.toLowerCase().split("/").pop() || "";
+
+    return [
+      "app.py",
+      "main.py",
+      "server.py",
+      "index.js",
+      "server.js",
+      "app.js",
+      "main.js",
+      "index.ts",
+      "main.ts",
+      "app.tsx",
+      "page.tsx",
+    ].includes(name);
+  });
+
+  const modelFile = files.find((file) => {
+    const name = file.toLowerCase();
+
+    return (
+      name.includes("model") ||
+      name.includes("predict") ||
+      name.includes("train")
+    );
+  });
+
+  const dependencyFile = files.find((file) => {
+    const name = file.toLowerCase();
+
+    return (
+      name.endsWith("requirements.txt") ||
+      name.endsWith("package.json") ||
+      name.endsWith("pom.xml")
+    );
+  });
+
+  if (readme) {
+    guide.push({
+      file: readme,
+      title: "Understand the project",
+      description:
+        "Start with the README to understand the project's purpose, setup, and usage.",
+    });
+  }
+
+  if (entryPoint) {
+    guide.push({
+      file: entryPoint,
+      title: "Find the application entry point",
+      description:
+        "This is one of the main files responsible for starting or handling the application.",
+    });
+  }
+
+  if (modelFile) {
+    guide.push({
+      file: modelFile,
+      title: "Understand the core logic",
+      description:
+        "This file appears to contain model, prediction, training, or core application logic.",
+    });
+  }
+
+  if (dependencyFile) {
+    guide.push({
+      file: dependencyFile,
+      title: "Understand dependencies",
+      description:
+        "Check this file to see which libraries and frameworks the project uses.",
+    });
+  }
+
+  return guide;
+}
+
 function getFilePurpose(file: string) {
   const name = file.toLowerCase();
 
@@ -282,13 +370,7 @@ export async function POST(request: NextRequest) {
         technologies,
         importantFiles: importantFileObjects,
         architecture,
-        onboardingGuide: [
-          "Read README.md to understand the project purpose.",
-          "Find and open the main application or entry-point file.",
-          "Examine the main business logic and processing files.",
-          "Explore the frontend or templates if the project has a user interface.",
-          "Review dependency and configuration files to understand the technologies used.",
-        ],
+        onboardingGuide: createOnboardingGuide(files),
       };
 
       return NextResponse.json({
