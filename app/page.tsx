@@ -276,22 +276,24 @@ Please explain:
         </p>
 
         {/* Repository Input */}
-        <div className="mt-10 flex w-full max-w-2xl flex-col gap-3 sm:flex-row">
-          <input
-            type="url"
-            placeholder="https://github.com/user/repository"
-            value={repoUrl}
-            onChange={(e) => setRepoUrl(e.target.value)}
-            className="h-14 flex-1 rounded-xl border border-zinc-700 bg-zinc-900 px-5 text-white outline-none placeholder:text-zinc-500 focus:border-blue-500"
-          />
+        <div className="mt-10 flex w-full flex-col items-center gap-8">
+          <div className="flex w-full max-w-3xl items-center justify-center gap-3">
+            <input
+              type="url"
+              placeholder="https://github.com/user/repository"
+              value={repoUrl}
+              onChange={(e) => setRepoUrl(e.target.value)}
+              className="h-14 flex-1 rounded-xl border border-zinc-700 bg-zinc-900 px-5 text-white outline-none placeholder:text-zinc-500 focus:border-blue-500"
+            />
 
-          <button
-            onClick={handleAnalyze}
-            disabled={loading}
-            className="h-14 rounded-xl bg-blue-600 px-7 font-semibold transition hover:bg-blue-500 disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            {loading ? "Analyzing..." : "Analyze Repository"}
-          </button>
+            <button
+              onClick={handleAnalyze}
+              disabled={loading}
+              className="h-14 rounded-xl bg-blue-600 px-7 font-semibold transition hover:bg-blue-500 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {loading ? "Analyzing..." : "Analyze Repository"}
+            </button>
+          </div>
           {/* Repository Result */}
           {error && (
             <div className="mt-8 w-full max-w-2xl rounded-xl border border-red-800 bg-red-950/30 p-5 text-red-300">
@@ -300,7 +302,7 @@ Please explain:
           )}
 
 {repoData && (
-  <div className="mt-8 w-full max-w-2xl rounded-xl border border-zinc-700 bg-zinc-900 p-6 text-left">
+  <div className="w-full max-w-4xl rounded-xl border border-zinc-700 bg-zinc-900 p-6 text-left">
     <h3 className="text-2xl font-bold text-white">
       {repoData.name}
     </h3>
