@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import ArchitectureDiagram from "./components/ArchitectureDiagram";
+import CodeSearch from "./components/CodeSearch";
 import CodeViewer from "./components/CodeViewer";
 import FileTree from "./components/FileTree";
 import RepositorySearch from "./components/RepositorySearch";
@@ -352,6 +353,15 @@ Please explain:
         <RepositorySearch
           files={repoData.files || []}
           onSelectFile={handleFileSelect}
+        />
+
+        <CodeSearch
+          files={repoData.sourceFiles || []}
+          onSelectFile={(file) => {
+            setSelectedFile(file);
+            setFileExplanation("");
+            setFileExplanationFallback(false);
+          }}
         />
 
         <FileTree
