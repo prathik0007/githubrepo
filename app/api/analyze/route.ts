@@ -1,6 +1,158 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getOpenAIClient } from "@/app/lib/openai";
 
+function detectProjectType(files: string[]) {
+  const lowerFiles = files.map((file) => file.toLowerCase());
+
+  if (
+    lowerFiles.some((file) => file.endsWith("manage.py")) ||
+    lowerFiles.some((file) => file.includes("django"))
+  ) {
+    return "django";
+  }
+
+  if (
+    lowerFiles.some((file) => file.includes("pom.xml")) ||
+    lowerFiles.some((file) => file.includes("spring"))
+  ) {
+    return "spring";
+  }
+
+  if (
+    lowerFiles.some((file) => file.endsWith("package.json")) &&
+    lowerFiles.some(
+      (file) =>
+        file.endsWith(".jsx") ||
+        file.endsWith(".tsx") ||
+        file.includes("react")
+    )
+  ) {
+    return "react";
+  }
+
+  if (
+    lowerFiles.some((file) => file.endsWith("requirements.txt")) ||
+    lowerFiles.some((file) => file.endsWith(".py"))
+  ) {
+    return "python";
+  }
+
+  return "generic";
+}
+
+function createArchitecture(projectType: string) {
+  if (projectType === "python") {
+    return {
+      description: "The repository appears to be a Python-based application.",
+      nodes: [
+        {
+          id: "user",
+          position: { x: 250, y: 0 },
+          data: { label: "👤 User" },
+          type: "default",
+        },
+        {
+          id: "application",
+          position: { x: 250, y: 120 },
+          data: { label: "🐍 Python Application" },
+          type: "default",
+        },
+        {
+          id: "logic",
+          position: { x: 250, y: 240 },
+          data: { label: "🧠 Application / ML Logic" },
+          type: "default",
+        },
+        {
+          id: "result",
+          position: { x: 250, y: 360 },
+          data: { label: "📊 Result" },
+          type: "default",
+        },
+      ],
+      edges: [
+        { id: "user-application", source: "user", target: "application" },
+        { id: "application-logic", source: "application", target: "logic" },
+        { id: "logic-result", source: "logic", target: "result" },
+      ],
+    };
+  }
+
+  if (projectType === "react") {
+    return {
+      description:
+        "The repository appears to contain a React-based frontend application.",
+      nodes: [
+        {
+          id: "user",
+          position: { x: 250, y: 0 },
+          data: { label: "👤 User" },
+          type: "default",
+        },
+        {
+          id: "frontend",
+          position: { x: 250, y: 120 },
+          data: { label: "⚛️ React Frontend" },
+          type: "default",
+        },
+        {
+          id: "logic",
+          position: { x: 250, y: 240 },
+          data: { label: "🧠 Application Logic" },
+          type: "default",
+        },
+        {
+          id: "result",
+          position: { x: 250, y: 360 },
+          data: { label: "📊 Result" },
+          type: "default",
+        },
+      ],
+      edges: [
+        { id: "user-frontend", source: "user", target: "frontend" },
+        { id: "frontend-logic", source: "frontend", target: "logic" },
+        { id: "logic-result", source: "logic", target: "result" },
+      ],
+    };
+  }
+
+  return {
+    description:
+      "A high-level architecture inferred from the repository structure.",
+    nodes: [
+      {
+        id: "user",
+        position: { x: 250, y: 0 },
+        data: { label: "👤 User" },
+        type: "default",
+      },
+      {
+        id: "application",
+        position: { x: 250, y: 120 },
+        data: { label: "⚙️ Application" },
+        type: "default",
+      },
+      {
+        id: "logic",
+        position: { x: 250, y: 240 },
+        data: { label: "🧠 Application Logic" },
+        type: "default",
+      },
+      {
+        id: "result",
+        position: { x: 250, y: 360 },
+        data: { label: "📊 Result" },
+        type: "default",
+      },
+    ],
+    edges: [
+      { id: "user-application", source: "user", target: "application" },
+      { id: "application-logic", source: "application", target: "logic" },
+      { id: "logic-result", source: "logic", target: "result" },
+    ],
+  };
+}
+
 function getFilePurpose(file: string) {
   const name = file.toLowerCase();
 
@@ -94,6 +246,7 @@ export async function POST(request: NextRequest) {
         repository?.files
           ?.slice(0, 15)
           ?.map((file: { path: string }) => file.path) || [];
+      const projectType = detectProjectType(files);
 
       const importantFiles = files
         .filter((file: string) => {
@@ -118,6 +271,7 @@ export async function POST(request: NextRequest) {
         file,
         purpose: getFilePurpose(file),
       }));
+      const architecture = createArchitecture(projectType);
 
       const analysis = {
         overview: `${name} is a software project${
@@ -127,8 +281,7 @@ export async function POST(request: NextRequest) {
         }. The repository contains ${files.length} detected files.`,
         technologies,
         importantFiles: importantFileObjects,
-        architecture:
-          "The application can be understood by following its main entry point, business logic, and user interface components.",
+        architecture,
         onboardingGuide: [
           "Read README.md to understand the project purpose.",
           "Find and open the main application or entry-point file.",

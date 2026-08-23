@@ -332,9 +332,9 @@ Explain:
               🏗️ Architecture
             </h5>
             <p className="mt-3 leading-7 text-zinc-400">
-              {analysis.architecture}
+              {analysis.architecture.description}
             </p>
-            <ArchitectureDiagram />
+            <ArchitectureDiagram architecture={analysis.architecture} />
           </div>
 
           {/* Onboarding */}
