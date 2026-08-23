@@ -3,7 +3,6 @@
 import {
   Background,
   Controls,
-  MiniMap,
   ReactFlow,
   type Edge,
   type Node,
@@ -32,7 +31,6 @@ export default function ArchitectureDiagram({
       >
         <Background />
         <Controls />
-        <MiniMap />
       </ReactFlow>
     </div>
   );
