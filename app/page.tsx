@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import ArchitectureDiagram from "./components/ArchitectureDiagram";
+import CodeViewer from "./components/CodeViewer";
 
 export default function Home() {
   const [repoUrl, setRepoUrl] = useState("");
@@ -12,6 +13,7 @@ export default function Home() {
   const [aiLoading, setAiLoading] = useState(false);
   const [aiFallback, setAiFallback] = useState(false);
   const [analysis, setAnalysis] = useState<any>(null);
+  const [selectedFile, setSelectedFile] = useState<any>(null);
 
   const handleAnalyze = async () => {
     setLoading(true);
@@ -20,6 +22,7 @@ export default function Home() {
     setAiAnswer("");
     setAiFallback(false);
     setAnalysis(null);
+    setSelectedFile(null);
 
     try {
       const response = await fetch("/api/github", {
@@ -213,17 +216,29 @@ Explain:
       <div className="mt-4 max-h-64 overflow-y-auto rounded-lg bg-zinc-950 p-4">
         {repoData.files?.map(
           (file: { path: string; size: number }) => (
-            <div
+            <button
+              type="button"
+              onClick={() => {
+                const sourceFile = repoData.sourceFiles?.find(
+                  (item: { path: string }) => item.path === file.path
+                );
+
+                if (sourceFile) {
+                  setSelectedFile(sourceFile);
+                }
+              }}
               key={file.path}
-              className="flex items-center justify-between border-b border-zinc-800 py-2 last:border-b-0"
+              className="w-full border-b border-zinc-800 text-left transition-colors last:border-b-0 hover:bg-zinc-900"
             >
-              <span className="text-sm text-zinc-300">
-                📄 {file.path}
-              </span>
-              <span className="text-xs text-zinc-500">
-                {file.size} bytes
-              </span>
-            </div>
+              <div className="flex items-center justify-between px-4 py-3">
+                <span className="text-sm text-blue-400">
+                  📄 {file.path}
+                </span>
+                <span className="text-xs text-zinc-500">
+                  {file.size} bytes
+                </span>
+              </div>
+            </button>
           )
         )}
       </div>
@@ -257,6 +272,25 @@ Explain:
         )}
       </div>
     </div>
+
+    {selectedFile && (
+      <div className="mt-8">
+        <div className="mb-4">
+          <h4 className="text-xl font-semibold text-white">
+            🔍 Code Viewer
+          </h4>
+
+          <p className="mt-1 text-sm text-zinc-500">
+            Inspect the selected repository file.
+          </p>
+        </div>
+
+        <CodeViewer
+          fileName={selectedFile.path}
+          content={selectedFile.content}
+        />
+      </div>
+    )}
 
     {/* AI Explanation */}
     <div className="mt-8 border-t border-zinc-700 pt-6">
