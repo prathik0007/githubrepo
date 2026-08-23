@@ -473,7 +473,7 @@ Please explain:
           <div className="mt-5 rounded-xl border border-zinc-800 bg-zinc-950 p-5">
             <div className="flex items-center justify-between">
               <h5 className="text-lg font-semibold text-white">
-                🤖 Gemini File Explanation
+                🤖 AI File Explanation
               </h5>
             </div>
 
