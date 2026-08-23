@@ -3,6 +3,7 @@
 import { useState } from "react";
 import ArchitectureDiagram from "./components/ArchitectureDiagram";
 import CodeViewer from "./components/CodeViewer";
+import FileTree from "./components/FileTree";
 
 export default function Home() {
   const [repoUrl, setRepoUrl] = useState("");
@@ -167,6 +168,21 @@ Please explain:
     }
   };
 
+  const handleFileSelect = (path: string) => {
+    const sourceFile = repoData?.sourceFiles?.find(
+      (file: { path: string }) => file.path === path
+    );
+
+    if (!sourceFile) {
+      setSelectedFile(null);
+      return;
+    }
+
+    setSelectedFile(sourceFile);
+    setFileExplanation("");
+    setFileExplanationFallback(false);
+  };
+
   return (
     <main className="min-h-screen bg-zinc-950 text-white">
       {/* Header */}
@@ -270,40 +286,10 @@ Please explain:
     </div>
 
     <div className="mt-8 border-t border-zinc-700 pt-6">
-      <h4 className="text-lg font-semibold text-white">
-        Repository Files
-      </h4>
-      <div className="mt-4 max-h-64 overflow-y-auto rounded-lg bg-zinc-950 p-4">
-        {repoData.files?.map(
-          (file: { path: string; size: number }) => (
-            <button
-              type="button"
-              onClick={() => {
-                const sourceFile = repoData.sourceFiles?.find(
-                  (item: { path: string }) => item.path === file.path
-                );
-
-                if (sourceFile) {
-                  setSelectedFile(sourceFile);
-                            setFileExplanation("");
-                            setFileExplanationFallback(false);
-                }
-              }}
-              key={file.path}
-              className="w-full border-b border-zinc-800 text-left transition-colors last:border-b-0 hover:bg-zinc-900"
-            >
-              <div className="flex items-center justify-between px-4 py-3">
-                <span className="text-sm text-blue-400">
-                  📄 {file.path}
-                </span>
-                <span className="text-xs text-zinc-500">
-                  {file.size} bytes
-                </span>
-              </div>
-            </button>
-          )
-        )}
-      </div>
+      <FileTree
+        files={repoData.files || []}
+        onSelectFile={handleFileSelect}
+      />
     </div>
 
     <div className="mt-8 border-t border-zinc-700 pt-6">
