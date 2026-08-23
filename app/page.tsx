@@ -489,7 +489,7 @@ Please explain:
     <div className="mt-8 border-t border-zinc-700 pt-6">
       <div className="flex items-center justify-between">
         <h4 className="text-lg font-semibold text-white">
-          ✨ Gemini AI Explanation
+          ✨ AI Explanation
         </h4>
       </div>
 
