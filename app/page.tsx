@@ -168,19 +168,78 @@ Please explain:
     }
   };
 
-  const handleFileSelect = (path: string) => {
-    const sourceFile = repoData?.sourceFiles?.find(
-      (file: { path: string }) => file.path === path
-    );
-
-    if (!sourceFile) {
-      setSelectedFile(null);
+  const handleFileSelect = async (path: string) => {
+    if (!repoData) {
       return;
     }
 
-    setSelectedFile(sourceFile);
+    const binaryExtensions = [
+      ".png",
+      ".jpg",
+      ".jpeg",
+      ".gif",
+      ".webp",
+      ".ico",
+      ".pdf",
+      ".zip",
+      ".exe",
+    ];
+
+    const isBinary = binaryExtensions.some((extension) =>
+      path.toLowerCase().endsWith(extension)
+    );
+
+    if (isBinary) {
+      setSelectedFile({
+        path,
+        content: "This file type cannot be displayed in the code viewer.",
+      });
+      setFileExplanation("");
+      setFileExplanationFallback(false);
+      return;
+    }
+
+    setSelectedFile({
+      path,
+      content: "Loading file...",
+    });
+
     setFileExplanation("");
     setFileExplanationFallback(false);
+
+    try {
+      const [owner, repo] = (repoData.fullName || "").split("/");
+      const response = await fetch(
+        `/api/github/file?owner=${encodeURIComponent(
+          owner
+        )}&repo=${encodeURIComponent(
+          repo
+        )}&path=${encodeURIComponent(
+          path
+        )}&branch=${encodeURIComponent(repoData.defaultBranch || "main")}`
+      );
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || "Unable to load file");
+      }
+
+      setSelectedFile({
+        path: data.path,
+        content: data.content,
+        size: data.size,
+        sha: data.sha,
+        htmlUrl: data.htmlUrl,
+      });
+    } catch (error) {
+      console.error(error);
+
+      setSelectedFile({
+        path,
+        content: "Unable to load this file from GitHub.",
+      });
+    }
   };
 
   return (
@@ -336,6 +395,7 @@ Please explain:
         <CodeViewer
           fileName={selectedFile.path}
           content={selectedFile.content}
+          htmlUrl={selectedFile.htmlUrl}
           onExplain={explainFile}
           explaining={fileExplaining}
         />
