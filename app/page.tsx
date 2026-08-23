@@ -6,6 +6,7 @@ import CodeSearch from "./components/CodeSearch";
 import CodeViewer from "./components/CodeViewer";
 import FileTree from "./components/FileTree";
 import RepositorySearch from "./components/RepositorySearch";
+import { detectTechnologies } from "./lib/detectTechnologies";
 
 export default function Home() {
   const [repoUrl, setRepoUrl] = useState("");
@@ -23,6 +24,9 @@ export default function Home() {
   const [fileExplaining, setFileExplaining] = useState(false);
   const [fileExplanationFallback, setFileExplanationFallback] =
     useState(false);
+  const technologies = repoData
+    ? detectTechnologies(repoData.files || [])
+    : [];
 
   const handleAnalyze = async () => {
     setLoading(true);
@@ -228,8 +232,18 @@ Please explain:
 
       const data = await response.json();
 
+      console.log("File data received in page:", data);
+
+      console.log("GitHub file response:", {
+        status: response.status,
+        data,
+      });
+
       if (!response.ok) {
-        throw new Error(data.error || "Unable to load file");
+        throw new Error(
+          data.error ||
+            `GitHub request failed with status ${response.status}`
+        );
       }
 
       setSelectedFile({
@@ -240,11 +254,14 @@ Please explain:
         htmlUrl: data.htmlUrl,
       });
     } catch (error) {
-      console.error(error);
+      console.error("File loading error:", error);
 
       setSelectedFile({
         path,
-        content: "Unable to load this file from GitHub.",
+        content:
+          error instanceof Error
+            ? `Error loading file:\n\n${error.message}`
+            : "Unable to load this file from GitHub.",
       });
     }
   };
@@ -378,31 +395,32 @@ Please explain:
     </div>
 
     <div className="mt-8 border-t border-zinc-700 pt-6">
-      <h4 className="text-lg font-semibold text-white">
-        Source Files
-      </h4>
-      <div className="mt-4 space-y-4">
+      <div className="rounded-xl border border-zinc-800 bg-zinc-950">
+        <div className="border-b border-zinc-800 px-4 py-3">
+          <h4 className="font-semibold text-white">
+            📄 Source Files
+          </h4>
+        </div>
+
+        <div className="max-h-96 overflow-auto">
         {repoData.sourceFiles?.map(
           (file: {
             path: string;
             size: number;
             content: string;
           }) => (
-            <div
+            <button
               key={file.path}
-              className="overflow-hidden rounded-lg border border-zinc-800 bg-zinc-950"
+              type="button"
+              onClick={() => handleFileSelect(file.path)}
+              className="flex w-full items-center gap-2 border-b border-zinc-900 px-4 py-3 text-left text-sm text-zinc-300 hover:bg-zinc-900"
             >
-              <div className="border-b border-zinc-800 px-4 py-3">
-                <span className="text-sm font-semibold text-blue-400">
-                  📄 {file.path}
-                </span>
-              </div>
-              <pre className="max-h-80 overflow-auto p-4 text-left text-xs leading-6 text-zinc-300">
-                <code>{file.content}</code>
-              </pre>
-            </div>
+              <span>📄</span>
+              <span className="truncate text-blue-400">{file.path}</span>
+            </button>
           )
         )}
+        </div>
       </div>
     </div>
 
@@ -480,15 +498,19 @@ Please explain:
               🛠️ Technologies
             </h5>
             <div className="mt-4 flex flex-wrap gap-2">
-              {analysis.technologies?.map(
-                (technology: string) => (
-                  <span
-                    key={technology}
-                    className="rounded-full bg-blue-950 px-3 py-1 text-sm text-blue-300"
-                  >
-                    {technology}
-                  </span>
-                )
+              {technologies.map((technology) => (
+                <span
+                  key={technology}
+                  className="rounded-full bg-blue-900/50 px-3 py-1 text-sm text-blue-300"
+                >
+                  {technology}
+                </span>
+              ))}
+
+              {technologies.length === 0 && (
+                <span className="text-sm text-zinc-500">
+                  No technologies detected
+                </span>
               )}
             </div>
           </div>

@@ -11,9 +11,7 @@ export async function GET(request: NextRequest) {
 
     if (!owner || !repo || !path) {
       return NextResponse.json(
-        {
-          error: "owner, repo and path are required",
-        },
+        { error: "owner, repo and path are required" },
         { status: 400 }
       );
     }
@@ -23,70 +21,58 @@ export async function GET(request: NextRequest) {
       .map(encodeURIComponent)
       .join("/");
 
-    const url =
-      `https://api.github.com/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/contents/${encodedPath}` +
-      `?ref=${encodeURIComponent(branch)}`;
+    const rawUrl =
+      `https://raw.githubusercontent.com/` +
+      `${encodeURIComponent(owner)}/` +
+      `${encodeURIComponent(repo)}/` +
+      `${encodeURIComponent(branch)}/` +
+      encodedPath;
 
-    const response = await fetch(url, {
-      headers: {
-        Accept: "application/vnd.github+json",
-        "X-GitHub-Api-Version": "2026-03-10",
-      },
+    console.log("Fetching GitHub file:", rawUrl);
+
+    const response = await fetch(rawUrl, {
       cache: "no-store",
     });
 
     if (!response.ok) {
-      const errorData = await response.json().catch(() => null);
+      console.error(
+        "GitHub raw file error:",
+        response.status,
+        response.statusText
+      );
 
       return NextResponse.json(
         {
-          error:
-            errorData?.message ||
-            `GitHub API returned ${response.status}`,
+          error: `GitHub returned ${response.status}: ${response.statusText}`,
         },
         { status: response.status }
       );
     }
 
-    const data = await response.json();
+    const content = await response.text();
 
-    if (data.type !== "file") {
-      return NextResponse.json(
-        {
-          error: "The selected path is not a file.",
-        },
-        { status: 400 }
-      );
-    }
-
-    if (data.encoding !== "base64" || !data.content) {
-      return NextResponse.json(
-        {
-          error:
-            "GitHub did not return readable file content.",
-        },
-        { status: 400 }
-      );
-    }
-
-    const content = Buffer.from(
-      data.content.replace(/\n/g, ""),
-      "base64"
-    ).toString("utf-8");
+    console.log("GitHub file status:", response.status);
+    console.log("GitHub file content length:", content.length);
+    console.log("GitHub file preview:", content.slice(0, 200));
 
     return NextResponse.json({
-      path: data.path,
+      path,
       content,
-      size: data.size,
-      sha: data.sha,
-      htmlUrl: data.html_url,
+      size: content.length,
+      htmlUrl:
+        `https://github.com/${owner}/${repo}/blob/` +
+        `${encodeURIComponent(branch)}/` +
+        encodedPath,
     });
   } catch (error) {
     console.error("GitHub file error:", error);
 
     return NextResponse.json(
       {
-        error: "Failed to fetch repository file.",
+        error:
+          error instanceof Error
+            ? error.message
+            : "Failed to fetch repository file.",
       },
       { status: 500 }
     );

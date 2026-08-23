@@ -43,6 +43,12 @@ export default function CodeViewer({
   explaining,
   highlightLine,
 }: CodeViewerProps) {
+  console.log("CodeViewer content:", {
+    fileName,
+    contentLength: content?.length,
+    contentPreview: content?.slice(0, 100),
+  });
+
   const language = getLanguage(fileName);
   const codeContainerRef = useRef<HTMLDivElement>(null);
 
