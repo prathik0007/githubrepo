@@ -9,7 +9,10 @@ type SourceFile = {
 
 type CodeSearchProps = {
   files: SourceFile[];
-  onSelectFile: (file: SourceFile) => void;
+  onSelectFile: (
+    file: SourceFile,
+    lineNumber: number
+  ) => void;
 };
 
 type Match = {
@@ -87,7 +90,9 @@ export default function CodeSearch({
               <button
                 key={`${match.file.path}-${match.lineNumber}-${index}`}
                 type="button"
-                onClick={() => onSelectFile(match.file)}
+                onClick={() =>
+                  onSelectFile(match.file, match.lineNumber)
+                }
                 className="w-full rounded-lg p-3 text-left hover:bg-zinc-800"
               >
                 <div className="text-sm font-medium text-blue-400">

@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useRef } from "react";
 import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
 import { vscDarkPlus } from "react-syntax-highlighter/dist/esm/styles/prism";
 
@@ -9,6 +10,7 @@ type CodeViewerProps = {
   htmlUrl?: string;
   onExplain: () => void;
   explaining: boolean;
+  highlightLine?: number | null;
 };
 
 function getLanguage(fileName: string) {
@@ -39,8 +41,20 @@ export default function CodeViewer({
   htmlUrl,
   onExplain,
   explaining,
+  highlightLine,
 }: CodeViewerProps) {
   const language = getLanguage(fileName);
+  const codeContainerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!highlightLine) {
+      return;
+    }
+
+    codeContainerRef.current
+      ?.querySelector<HTMLElement>(`#code-line-${highlightLine}`)
+      ?.scrollIntoView({ block: "center", behavior: "smooth" });
+  }, [content, highlightLine]);
 
   return (
     <div className="overflow-hidden rounded-xl border border-zinc-800 bg-[#0d1117]">
@@ -76,12 +90,23 @@ export default function CodeViewer({
         </div>
       </div>
 
-      <div className="max-h-[650px] overflow-auto">
+      <div ref={codeContainerRef} className="max-h-[650px] overflow-auto">
         <SyntaxHighlighter
           language={language}
           style={vscDarkPlus}
           showLineNumbers
           wrapLongLines={false}
+          lineProps={(lineNumber) => ({
+            id: `code-line-${lineNumber}`,
+            style:
+              highlightLine === lineNumber
+                ? {
+                    display: "block",
+                    background: "rgba(59, 130, 246, 0.18)",
+                    borderLeft: "3px solid #3b82f6",
+                  }
+                : {},
+          })}
           customStyle={{
             margin: 0,
             padding: "20px 0",

@@ -17,6 +17,8 @@ export default function Home() {
   const [aiFallback, setAiFallback] = useState(false);
   const [analysis, setAnalysis] = useState<any>(null);
   const [selectedFile, setSelectedFile] = useState<any>(null);
+  const [highlightLine, setHighlightLine] =
+    useState<number | null>(null);
   const [fileExplanation, setFileExplanation] = useState("");
   const [fileExplaining, setFileExplaining] = useState(false);
   const [fileExplanationFallback, setFileExplanationFallback] =
@@ -30,6 +32,7 @@ export default function Home() {
     setAiFallback(false);
     setAnalysis(null);
     setSelectedFile(null);
+    setHighlightLine(null);
     setFileExplanation("");
     setFileExplanationFallback(false);
 
@@ -171,6 +174,8 @@ Please explain:
   };
 
   const handleFileSelect = async (path: string) => {
+    setHighlightLine(null);
+
     if (!repoData) {
       return;
     }
@@ -357,8 +362,9 @@ Please explain:
 
         <CodeSearch
           files={repoData.sourceFiles || []}
-          onSelectFile={(file) => {
+          onSelectFile={(file, lineNumber) => {
             setSelectedFile(file);
+            setHighlightLine(lineNumber);
             setFileExplanation("");
             setFileExplanationFallback(false);
           }}
@@ -418,6 +424,7 @@ Please explain:
           htmlUrl={selectedFile.htmlUrl}
           onExplain={explainFile}
           explaining={fileExplaining}
+          highlightLine={highlightLine}
         />
 
         {fileExplanation && (
