@@ -130,27 +130,34 @@ export async function POST(request: NextRequest) {
   try {
     // 1. Get the URL from the frontend
     const body = await request.json();
-    const url = body.url;
+    const rawUrl = body.url?.trim();
 
-    if (!url) {
+    if (!rawUrl) {
       return NextResponse.json(
         { error: "GitHub repository URL is required" },
         { status: 400 }
       );
     }
 
-    // 2. Validate GitHub URL
-    const parsedUrl = new URL(url);
+    let githubUrl: URL;
 
-    if (parsedUrl.hostname !== "github.com") {
+    try {
+      githubUrl = new URL(rawUrl);
+    } catch {
       return NextResponse.json(
-        { error: "Please provide a valid GitHub URL" },
+        { error: "Invalid GitHub repository URL" },
         { status: 400 }
       );
     }
 
-    // 3. Extract owner and repository
-    const parts = parsedUrl.pathname.split("/").filter(Boolean);
+    if (githubUrl.hostname !== "github.com") {
+      return NextResponse.json(
+        { error: "Please provide a valid GitHub repository URL" },
+        { status: 400 }
+      );
+    }
+
+    const parts = githubUrl.pathname.split("/").filter(Boolean);
 
     if (parts.length < 2) {
       return NextResponse.json(
@@ -160,21 +167,64 @@ export async function POST(request: NextRequest) {
     }
 
     const owner = parts[0];
-    const repo = parts[1].replace(".git", "");
+    const repo = parts[1].replace(/\.git$/, "");
+
+    console.log("Parsed GitHub repository:", {
+      owner,
+      repo,
+    });
 
     // 4. Get repository information
+    console.log(
+      "Fetching GitHub repository:",
+      `https://api.github.com/repos/${owner}/${repo}`
+    );
+
     const repoResponse = await fetch(
-      `https://api.github.com/repos/${owner}/${repo}`,
+      `https://api.github.com/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}`,
       {
         headers: {
           Accept: "application/vnd.github+json",
+          "User-Agent": "GitHub-Repository-Explainer",
         },
+        cache: "no-store",
       }
     );
 
     if (!repoResponse.ok) {
+      const data = await repoResponse.json().catch(() => null);
+
+      console.error("GitHub API error:", {
+        status: repoResponse.status,
+        statusText: repoResponse.statusText,
+        data,
+        owner,
+        repo,
+      });
+
+      if (repoResponse.status === 404) {
+        return NextResponse.json(
+          { error: "Repository not found" },
+          { status: 404 }
+        );
+      }
+
+      if (repoResponse.status === 403) {
+        return NextResponse.json(
+          {
+            error:
+              "GitHub API access was denied or rate limited. Please try again later.",
+            details: data,
+          },
+          { status: 403 }
+        );
+      }
+
       return NextResponse.json(
-        { error: "Repository not found" },
+        {
+          error: `GitHub API error: ${repoResponse.status} ${repoResponse.statusText}`,
+          details: data,
+        },
         { status: repoResponse.status }
       );
     }
@@ -187,6 +237,7 @@ export async function POST(request: NextRequest) {
       {
         headers: {
           Accept: "application/vnd.github+json",
+          "User-Agent": "GitHub-Repository-Explainer",
         },
       }
     );
@@ -243,6 +294,7 @@ export async function POST(request: NextRequest) {
             {
               headers: {
                 Accept: "application/vnd.github+json",
+                "User-Agent": "GitHub-Repository-Explainer",
               },
             }
           );

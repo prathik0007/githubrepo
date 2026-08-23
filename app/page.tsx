@@ -24,9 +24,45 @@ export default function Home() {
   const [fileExplaining, setFileExplaining] = useState(false);
   const [fileExplanationFallback, setFileExplanationFallback] =
     useState(false);
-  const technologies = repoData
-    ? detectTechnologies(repoData.files || [])
+  const technologyFiles = repoData
+    ? [...(repoData.files || []), ...(repoData.sourceFiles || [])]
     : [];
+  const technologies = repoData
+    ? detectTechnologies(technologyFiles)
+    : [];
+  const languageNames = new Set([
+    "HTML",
+    "CSS",
+    "JavaScript",
+    "TypeScript",
+    "Python",
+    "Java",
+    "Ruby",
+    "PHP",
+    "SQL",
+  ]);
+  const frameworkNames = new Set([
+    "React",
+    "Next.js",
+    "Express.js",
+    "Node.js",
+    "React Router",
+  ]);
+  const languages = technologies.filter((technology) =>
+    languageNames.has(technology)
+  );
+  const frameworks = technologies.filter((technology) =>
+    frameworkNames.has(technology)
+  );
+  const libraries = technologies.filter(
+    (technology) =>
+      !languageNames.has(technology) && !frameworkNames.has(technology)
+  );
+  const technologyCategories: { name: string; values: string[] }[] = [
+    { name: "Languages", values: languages },
+    { name: "Frameworks & Runtime", values: frameworks },
+    { name: "Libraries & Database", values: libraries },
+  ];
 
   const handleAnalyze = async () => {
     setLoading(true);
@@ -497,22 +533,31 @@ Please explain:
             <h5 className="text-lg font-semibold text-white">
               🛠️ Technologies
             </h5>
-            <div className="mt-4 flex flex-wrap gap-2">
-              {technologies.map((technology) => (
-                <span
-                  key={technology}
-                  className="rounded-full bg-blue-900/50 px-3 py-1 text-sm text-blue-300"
-                >
-                  {technology}
-                </span>
-              ))}
+            {technologyCategories.map(({ name, values }) => (
+              values.length > 0 && (
+                <div key={name} className="mt-4 first:mt-3">
+                  <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-zinc-500">
+                    {name}
+                  </p>
+                  <div className="flex flex-wrap gap-2">
+                    {values.map((technology) => (
+                      <span
+                        key={technology}
+                        className="rounded-full bg-blue-900/50 px-3 py-1 text-sm text-blue-300"
+                      >
+                        {technology}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )
+            ))}
 
-              {technologies.length === 0 && (
-                <span className="text-sm text-zinc-500">
-                  No technologies detected
-                </span>
-              )}
-            </div>
+            {technologies.length === 0 && (
+              <p className="mt-3 text-sm text-zinc-500">
+                No technologies detected
+              </p>
+            )}
           </div>
 
           {/* Important Files */}
