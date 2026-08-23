@@ -5,6 +5,14 @@ function detectProjectType(files: string[]) {
   const lowerFiles = files.map((file) => file.toLowerCase());
 
   if (
+    lowerFiles.some((file) => file.endsWith("gemfile")) ||
+    lowerFiles.some((file) => file.endsWith(".ruby-version")) ||
+    lowerFiles.some((file) => file.includes("config/application.rb"))
+  ) {
+    return "ruby";
+  }
+
+  if (
     lowerFiles.some((file) => file.endsWith("manage.py")) ||
     lowerFiles.some((file) => file.includes("django"))
   ) {
@@ -41,6 +49,58 @@ function detectProjectType(files: string[]) {
 }
 
 function createArchitecture(projectType: string) {
+  if (projectType === "ruby") {
+    return {
+      description:
+        "The repository appears to be a Ruby-based application, potentially using the Rails framework.",
+      nodes: [
+        {
+          id: "user",
+          position: { x: 250, y: 0 },
+          data: { label: "👤 User" },
+          type: "default",
+        },
+        {
+          id: "routes",
+          position: { x: 250, y: 120 },
+          data: { label: "🛣️ Rails Routes" },
+          type: "default",
+        },
+        {
+          id: "controller",
+          position: { x: 250, y: 240 },
+          data: { label: "🎮 Controller" },
+          type: "default",
+        },
+        {
+          id: "model",
+          position: { x: 100, y: 360 },
+          data: { label: "🧠 Model / Business Logic" },
+          type: "default",
+        },
+        {
+          id: "database",
+          position: { x: 100, y: 480 },
+          data: { label: "🗄️ Database" },
+          type: "default",
+        },
+        {
+          id: "view",
+          position: { x: 400, y: 360 },
+          data: { label: "🖥️ View" },
+          type: "default",
+        },
+      ],
+      edges: [
+        { id: "user-routes", source: "user", target: "routes" },
+        { id: "routes-controller", source: "routes", target: "controller" },
+        { id: "controller-model", source: "controller", target: "model" },
+        { id: "model-database", source: "model", target: "database" },
+        { id: "controller-view", source: "controller", target: "view" },
+      ],
+    };
+  }
+
   if (projectType === "python") {
     return {
       description: "The repository appears to be a Python-based application.",
@@ -165,21 +225,43 @@ function createOnboardingGuide(files: string[]) {
   );
 
   const entryPoint = files.find((file) => {
-    const name = file.toLowerCase().split("/").pop() || "";
+    const lowerFile = file.toLowerCase();
+    const name = lowerFile.split("/").pop() || "";
 
     return [
+      // Python
       "app.py",
       "main.py",
       "server.py",
+
+      // JavaScript / Node
       "index.js",
       "server.js",
       "app.js",
       "main.js",
+
+      // TypeScript / React
       "index.ts",
       "main.ts",
       "app.tsx",
       "page.tsx",
-    ].includes(name);
+
+      // Ruby / Rails
+      "application.rb",
+      "environment.rb",
+      "routes.rb",
+
+      // Java / Spring
+      "application.java",
+      "application.kt",
+
+      // Generic
+      "main.go",
+      "main.rs",
+    ].includes(name) ||
+      lowerFile === "config/application.rb" ||
+      lowerFile === "config/environment.rb" ||
+      lowerFile === "config/routes.rb";
   });
 
   const modelFile = files.find((file) => {
@@ -198,7 +280,8 @@ function createOnboardingGuide(files: string[]) {
     return (
       name.endsWith("requirements.txt") ||
       name.endsWith("package.json") ||
-      name.endsWith("pom.xml")
+      name.endsWith("pom.xml") ||
+      name.endsWith("gemfile")
     );
   });
 
@@ -250,14 +333,32 @@ function getFilePurpose(file: string) {
   if (name === "app.py" || name === "main.py") {
     return "Likely application entry point.";
   }
-  if (name.includes("model")) {
-    return "Likely contains model or business logic.";
-  }
   if (name.includes("predict")) {
     return "Likely contains prediction-related logic.";
   }
   if (name.includes("requirement")) {
     return "Lists Python project dependencies.";
+  }
+  if (name.endsWith("gemfile")) {
+    return "Lists Ruby project dependencies and required gems.";
+  }
+  if (name.includes("config/application.rb")) {
+    return "Main Rails application configuration.";
+  }
+  if (name.includes("config/routes.rb")) {
+    return "Defines the application's Rails routes.";
+  }
+  if (name.includes("config/environment.rb")) {
+    return "Configures the Rails runtime environment.";
+  }
+  if (name.includes("controllers/") || name.includes("controller")) {
+    return "Handles incoming requests and coordinates application responses.";
+  }
+  if (name.includes("models/") || name.includes("model")) {
+    return "Contains application models and business logic.";
+  }
+  if (name.includes("views/") || name.includes("view")) {
+    return "Renders the application's user-facing views.";
   }
   if (name.includes("package.json")) {
     return "Contains JavaScript project dependencies and scripts.";
@@ -346,7 +447,14 @@ export async function POST(request: NextRequest) {
             name.includes("index.") ||
             name.includes("model") ||
             name.includes("requirements") ||
-            name.includes("package.json")
+            name.includes("package.json") ||
+            name.includes("gemfile") ||
+            name.includes("config/application.rb") ||
+            name.includes("config/routes.rb") ||
+            name.includes("config/environment.rb") ||
+            name.includes("controller") ||
+            name.includes("models/") ||
+            name.includes("views/")
           );
         })
         .slice(0, 8);
