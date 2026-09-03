@@ -5,6 +5,7 @@ import ArchitectureDiagram from "./components/ArchitectureDiagram";
 import CodeSearch from "./components/CodeSearch";
 import CodeViewer from "./components/CodeViewer";
 import FileTree from "./components/FileTree";
+import Navbar from "./components/Navbar";
 import RepositorySearch from "./components/RepositorySearch";
 import { detectTechnologies } from "./lib/detectTechnologies";
 
@@ -294,17 +295,7 @@ Please explain:
   return (
     <main className="min-h-screen bg-zinc-950 text-white">
       {/* Header */}
-      <header className="border-b border-zinc-800">
-        <div className="mx-auto flex max-w-6xl items-center justify-between px-6 py-5">
-          <h1 className="text-xl font-semibold">
-            GitHub Repository Explainer
-          </h1>
-
-          <span className="rounded-full border border-zinc-700 px-4 py-1.5 text-sm text-zinc-400">
-            AI Developer Tool
-          </span>
-        </div>
-      </header>
+      <Navbar />
 
       {/* Hero Section */}
       <section className="mx-auto flex min-h-[75vh] max-w-4xl flex-col items-center justify-center px-6 text-center">
