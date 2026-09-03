@@ -5,9 +5,19 @@ import ArchitectureDiagram from "./components/ArchitectureDiagram";
 import CodeSearch from "./components/CodeSearch";
 import CodeViewer from "./components/CodeViewer";
 import FileTree from "./components/FileTree";
+import MarkdownRenderer from "./components/MarkdownRenderer";
 import Navbar from "./components/Navbar";
 import RepositorySearch from "./components/RepositorySearch";
 import { detectTechnologies } from "./lib/detectTechnologies";
+
+type TabType = "tree" | "source" | "search" | "code_search";
+
+const SAMPLE_REPOS = [
+  { name: "React", url: "https://github.com/facebook/react" },
+  { name: "Express", url: "https://github.com/expressjs/express" },
+  { name: "FastAPI", url: "https://github.com/fastapi/fastapi" },
+  { name: "Zustand", url: "https://github.com/pmndrs/zustand" },
+];
 
 export default function Home() {
   const [repoUrl, setRepoUrl] = useState("");
@@ -18,16 +28,16 @@ export default function Home() {
   const [aiLoading, setAiLoading] = useState(false);
   const [analysis, setAnalysis] = useState<any>(null);
   const [selectedFile, setSelectedFile] = useState<any>(null);
-  const [highlightLine, setHighlightLine] =
-    useState<number | null>(null);
+  const [highlightLine, setHighlightLine] = useState<number | null>(null);
   const [fileExplanation, setFileExplanation] = useState("");
   const [fileExplaining, setFileExplaining] = useState(false);
+  const [activeTab, setActiveTab] = useState<TabType>("tree");
+
   const technologyFiles = repoData
     ? [...(repoData.files || []), ...(repoData.sourceFiles || [])]
     : [];
-  const technologies = repoData
-    ? detectTechnologies(technologyFiles)
-    : [];
+  const technologies = repoData ? detectTechnologies(technologyFiles) : [];
+
   const languageNames = new Set([
     "HTML",
     "CSS",
@@ -39,30 +49,34 @@ export default function Home() {
     "PHP",
     "SQL",
   ]);
+
   const frameworkNames = new Set([
     "React",
     "Next.js",
     "Express.js",
     "Node.js",
     "React Router",
+    "FastAPI",
+    "Django",
+    "Flask",
   ]);
-  const languages = technologies.filter((technology) =>
-    languageNames.has(technology)
-  );
-  const frameworks = technologies.filter((technology) =>
-    frameworkNames.has(technology)
-  );
+
+  const languages = technologies.filter((t) => languageNames.has(t));
+  const frameworks = technologies.filter((t) => frameworkNames.has(t));
   const libraries = technologies.filter(
-    (technology) =>
-      !languageNames.has(technology) && !frameworkNames.has(technology)
+    (t) => !languageNames.has(t) && !frameworkNames.has(t)
   );
-  const technologyCategories: { name: string; values: string[] }[] = [
+
+  const technologyCategories = [
     { name: "Languages", values: languages },
     { name: "Frameworks & Runtime", values: frameworks },
     { name: "Libraries & Database", values: libraries },
   ];
 
-  const handleAnalyze = async () => {
+  const handleAnalyze = async (overrideUrl?: string) => {
+    const targetUrl = overrideUrl || repoUrl;
+    if (!targetUrl.trim()) return;
+
     setLoading(true);
     setError("");
     setRepoData(null);
@@ -79,18 +93,30 @@ export default function Home() {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          url: repoUrl,
+          url: targetUrl.trim(),
         }),
       });
 
       const data = await response.json();
 
       if (!response.ok) {
-        setError(data.error || "Something went wrong");
+        setError(
+          data.error ||
+            "Unable to analyze this repository. Please make sure it is public and the URL is valid."
+        );
         return;
       }
 
       setRepoData(data);
+
+      // Auto-select first source file if available
+      if (data.sourceFiles && data.sourceFiles.length > 0) {
+        setSelectedFile({
+          path: data.sourceFiles[0].path,
+          content: data.sourceFiles[0].content,
+          size: data.sourceFiles[0].size,
+        });
+      }
 
       // Ask AI to explain the repository
       setAiLoading(true);
@@ -140,23 +166,24 @@ Explain:
         const aiData = await aiResponse.json();
         setAnalysis(aiData.analysis || null);
         setAiAnswer(aiData.answer || "");
-      } catch (error) {
-        console.error(error);
-        setAiAnswer("Unable to generate AI explanation.");
+      } catch (err) {
+        console.error("AI analysis error:", err);
+        setAiAnswer(
+          "Unable to generate AI explanation. Please check your API configuration."
+        );
       } finally {
         setAiLoading(false);
       }
-    } catch (error) {
-      setError("Unable to connect to the server");
+    } catch (err) {
+      console.error("Fetch error:", err);
+      setError("Unable to connect to the server. Please try again.");
     } finally {
       setLoading(false);
     }
   };
 
   const explainFile = async () => {
-    if (!selectedFile) {
-      return;
-    }
+    if (!selectedFile) return;
 
     setFileExplaining(true);
     setFileExplanation("");
@@ -196,9 +223,8 @@ Please explain:
       if (data.answer) {
         setFileExplanation(data.answer);
       }
-
-    } catch (error) {
-      console.error(error);
+    } catch (err) {
+      console.error("Explain file error:", err);
       setFileExplanation("Unable to generate an explanation for this file.");
     } finally {
       setFileExplaining(false);
@@ -208,9 +234,7 @@ Please explain:
   const handleFileSelect = async (path: string) => {
     setHighlightLine(null);
 
-    if (!repoData) {
-      return;
-    }
+    if (!repoData) return;
 
     const binaryExtensions = [
       ".png",
@@ -222,16 +246,32 @@ Please explain:
       ".pdf",
       ".zip",
       ".exe",
+      ".svg",
     ];
 
-    const isBinary = binaryExtensions.some((extension) =>
-      path.toLowerCase().endsWith(extension)
+    const isBinary = binaryExtensions.some((ext) =>
+      path.toLowerCase().endsWith(ext)
     );
 
     if (isBinary) {
       setSelectedFile({
         path,
-        content: "This file type cannot be displayed in the code viewer.",
+        content: "This binary file cannot be previewed in the code viewer.",
+      });
+      setFileExplanation("");
+      return;
+    }
+
+    // Check if we already have it in local sourceFiles
+    const localFile = repoData.sourceFiles?.find(
+      (f: { path: string; content: string }) => f.path === path
+    );
+
+    if (localFile && localFile.content) {
+      setSelectedFile({
+        path: localFile.path,
+        content: localFile.content,
+        size: localFile.size,
       });
       setFileExplanation("");
       return;
@@ -239,9 +279,8 @@ Please explain:
 
     setSelectedFile({
       path,
-      content: "Loading file...",
+      content: "// Loading file content from GitHub...",
     });
-
     setFileExplanation("");
 
     try {
@@ -249,27 +288,15 @@ Please explain:
       const response = await fetch(
         `/api/github/file?owner=${encodeURIComponent(
           owner
-        )}&repo=${encodeURIComponent(
-          repo
-        )}&path=${encodeURIComponent(
+        )}&repo=${encodeURIComponent(repo)}&path=${encodeURIComponent(
           path
         )}&branch=${encodeURIComponent(repoData.defaultBranch || "main")}`
       );
 
       const data = await response.json();
 
-      console.log("File data received in page:", data);
-
-      console.log("GitHub file response:", {
-        status: response.status,
-        data,
-      });
-
       if (!response.ok) {
-        throw new Error(
-          data.error ||
-            `GitHub request failed with status ${response.status}`
-        );
+        throw new Error(data.error || `GitHub request failed (${response.status})`);
       }
 
       setSelectedFile({
@@ -279,392 +306,579 @@ Please explain:
         sha: data.sha,
         htmlUrl: data.htmlUrl,
       });
-    } catch (error) {
-      console.error("File loading error:", error);
-
+    } catch (err) {
+      console.error("File loading error:", err);
       setSelectedFile({
         path,
         content:
-          error instanceof Error
-            ? `Error loading file:\n\n${error.message}`
-            : "Unable to load this file from GitHub.",
+          err instanceof Error
+            ? `// Error loading file from GitHub:\n// ${err.message}`
+            : "// Unable to load this file from GitHub.",
       });
     }
   };
 
   return (
-    <main className="min-h-screen bg-zinc-950 text-white">
-      {/* Header */}
+    <div className="min-h-screen bg-[#09090b] text-zinc-100 flex flex-col antialiased selection:bg-blue-600/30 selection:text-blue-300">
       <Navbar />
 
-      {/* Hero Section */}
-      <section className="mx-auto flex min-h-[75vh] max-w-4xl flex-col items-center justify-center px-6 text-center">
-        <div className="mb-5 rounded-full border border-zinc-700 bg-zinc-900 px-4 py-2 text-sm text-zinc-300">
-          ✨ Understand GitHub repositories with AI
-        </div>
+      <main className="flex-1">
+        {/* HERO SECTION */}
+        <section className="relative overflow-hidden border-b border-zinc-800/80 bg-gradient-to-b from-zinc-950 via-zinc-950/80 to-[#09090b] px-4 py-16 sm:px-6 lg:py-20">
+          <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_50%_0%,rgba(59,130,246,0.08),transparent_50%)]" />
 
-        <h2 className="max-w-3xl text-5xl font-bold tracking-tight sm:text-6xl">
-          Understand any
-          <span className="text-blue-500"> codebase </span>
-          faster.
-        </h2>
-
-        <p className="mt-6 max-w-2xl text-lg leading-8 text-zinc-400">
-          Paste a public GitHub repository and get an AI-powered overview,
-          architecture explanation, code insights, and a beginner-friendly
-          onboarding guide.
-        </p>
-
-        {/* Repository Input */}
-        <div className="mt-10 flex w-full flex-col items-center gap-8">
-          <div className="flex w-full max-w-3xl items-center justify-center gap-3">
-            <input
-              type="url"
-              placeholder="https://github.com/user/repository"
-              value={repoUrl}
-              onChange={(e) => setRepoUrl(e.target.value)}
-              className="h-14 flex-1 rounded-xl border border-zinc-700 bg-zinc-900 px-5 text-white outline-none placeholder:text-zinc-500 focus:border-blue-500"
-            />
-
-            <button
-              onClick={handleAnalyze}
-              disabled={loading}
-              className="h-14 rounded-xl bg-blue-600 px-7 font-semibold transition hover:bg-blue-500 disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              {loading ? "Analyzing..." : "Analyze Repository"}
-            </button>
-          </div>
-          {/* Repository Result */}
-          {error && (
-            <div className="mt-8 w-full max-w-2xl rounded-xl border border-red-800 bg-red-950/30 p-5 text-red-300">
-              {error}
-            </div>
-          )}
-
-{repoData && (
-  <div className="w-full max-w-4xl rounded-xl border border-zinc-700 bg-zinc-900 p-6 text-left">
-    <h3 className="text-2xl font-bold text-white">
-      {repoData.name}
-    </h3>
-
-    <p className="mt-2 text-zinc-400">
-      {repoData.description || "No description available."}
-    </p>
-
-    <div className="mt-5 grid grid-cols-2 gap-4 sm:grid-cols-4">
-      <div>
-        <p className="text-sm text-zinc-500">Language</p>
-        <p className="mt-1 font-semibold">
-          {repoData.language || "Unknown"}
-        </p>
-      </div>
-
-      <div>
-        <p className="text-sm text-zinc-500">Stars</p>
-        <p className="mt-1 font-semibold">
-          ⭐ {repoData.stars}
-        </p>
-      </div>
-
-      <div>
-        <p className="text-sm text-zinc-500">Forks</p>
-        <p className="mt-1 font-semibold">
-          🍴 {repoData.forks}
-        </p>
-      </div>
-
-      <div>
-        <p className="text-sm text-zinc-500">Repository</p>
-        <a
-          href={repoData.url}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="mt-1 block font-semibold text-blue-400 hover:underline"
-        >
-          View on GitHub
-        </a>
-      </div>
-    </div>
-
-    <div className="mt-8 border-t border-zinc-700 pt-6">
-      <div className="space-y-4">
-        <RepositorySearch
-          files={repoData.files || []}
-          onSelectFile={handleFileSelect}
-        />
-
-        <CodeSearch
-          files={repoData.sourceFiles || []}
-          onSelectFile={(file, lineNumber) => {
-            setSelectedFile(file);
-            setHighlightLine(lineNumber);
-            setFileExplanation("");
-          }}
-        />
-
-        <FileTree
-          files={repoData.files || []}
-          onSelectFile={handleFileSelect}
-        />
-      </div>
-    </div>
-
-    <div className="mt-8 border-t border-zinc-700 pt-6">
-      <div className="rounded-xl border border-zinc-800 bg-zinc-950">
-        <div className="border-b border-zinc-800 px-4 py-3">
-          <h4 className="font-semibold text-white">
-            📄 Source Files
-          </h4>
-        </div>
-
-        <div className="max-h-96 overflow-auto">
-        {repoData.sourceFiles?.map(
-          (file: {
-            path: string;
-            size: number;
-            content: string;
-          }) => (
-            <button
-              key={file.path}
-              type="button"
-              onClick={() => handleFileSelect(file.path)}
-              className="flex w-full items-center gap-2 border-b border-zinc-900 px-4 py-3 text-left text-sm text-zinc-300 hover:bg-zinc-900"
-            >
-              <span>📄</span>
-              <span className="truncate text-blue-400">{file.path}</span>
-            </button>
-          )
-        )}
-        </div>
-      </div>
-    </div>
-
-    {selectedFile && (
-      <div className="mt-8">
-        <div className="mb-4">
-          <h4 className="text-xl font-semibold text-white">
-            🔍 Code Viewer
-          </h4>
-
-          <p className="mt-1 text-sm text-zinc-500">
-            Inspect the selected repository file.
-          </p>
-        </div>
-
-        <CodeViewer
-          fileName={selectedFile.path}
-          content={selectedFile.content}
-          htmlUrl={selectedFile.htmlUrl}
-          onExplain={explainFile}
-          explaining={fileExplaining}
-          highlightLine={highlightLine}
-        />
-
-        {fileExplanation && (
-          <div className="mt-5 rounded-xl border border-zinc-800 bg-zinc-950 p-5">
-            <div className="flex items-center justify-between">
-              <h5 className="text-lg font-semibold text-white">
-                🤖 AI File Explanation
-              </h5>
+          <div className="relative mx-auto max-w-4xl text-center">
+            <div className="inline-flex items-center gap-2 rounded-full border border-zinc-800 bg-zinc-900/90 px-3.5 py-1 text-xs font-medium text-zinc-300 shadow-sm backdrop-blur-md">
+              <span className="flex h-2 w-2 rounded-full bg-blue-500 animate-pulse" />
+              <span>AI-Powered Repository Explainer & Code Inspector</span>
             </div>
 
-            <div className="mt-4 whitespace-pre-wrap text-sm leading-7 text-zinc-300">
-              {fileExplanation}
-            </div>
-          </div>
-        )}
-      </div>
-    )}
+            <h1 className="mt-6 text-4xl font-extrabold tracking-tight text-white sm:text-5xl lg:text-6xl">
+              Understand any <span className="text-blue-500">codebase</span> faster.
+            </h1>
 
-    {/* AI Explanation */}
-    <div className="mt-8 border-t border-zinc-700 pt-6">
-      <div className="flex items-center justify-between">
-        <h4 className="text-lg font-semibold text-white">
-          ✨ AI Explanation
-        </h4>
-      </div>
-
-      {analysis && (
-        <div className="mt-6 space-y-5">
-          {/* Overview */}
-          <div className="rounded-xl border border-zinc-800 bg-zinc-950 p-5">
-            <h5 className="text-lg font-semibold text-white">
-              📋 Repository Overview
-            </h5>
-            <p className="mt-3 leading-7 text-zinc-400">
-              {analysis.overview}
+            <p className="mt-4 text-base leading-7 text-zinc-400 sm:text-lg">
+              Paste a public GitHub repository to generate an AI technical overview,
+              interactive architecture map, full code explorer, and onboarding guide.
             </p>
-          </div>
 
-          {/* Technologies */}
-          <div className="rounded-xl border border-zinc-800 bg-zinc-950 p-5">
-            <h5 className="text-lg font-semibold text-white">
-              🛠️ Technologies
-            </h5>
-            {technologyCategories.map(({ name, values }) => (
-              values.length > 0 && (
-                <div key={name} className="mt-4 first:mt-3">
-                  <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-zinc-500">
-                    {name}
-                  </p>
-                  <div className="flex flex-wrap gap-2">
-                    {values.map((technology) => (
-                      <span
-                        key={technology}
-                        className="rounded-full bg-blue-900/50 px-3 py-1 text-sm text-blue-300"
-                      >
-                        {technology}
-                      </span>
-                    ))}
-                  </div>
+            {/* URL Input Bar */}
+            <div className="mt-8 flex flex-col items-center gap-3">
+              <form
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  handleAnalyze();
+                }}
+                className="flex w-full max-w-2xl items-center rounded-xl border border-zinc-800 bg-zinc-900/90 p-1.5 shadow-2xl transition focus-within:border-blue-500/80 focus-within:ring-2 focus-within:ring-blue-500/20"
+              >
+                <div className="flex items-center pl-3 text-zinc-500">
+                  <svg className="h-5 w-5 fill-current" viewBox="0 0 24 24">
+                    <path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z" />
+                  </svg>
                 </div>
-              )
-            ))}
 
-            {technologies.length === 0 && (
-              <p className="mt-3 text-sm text-zinc-500">
-                No technologies detected
-              </p>
+                <input
+                  type="url"
+                  required
+                  placeholder="https://github.com/owner/repository"
+                  value={repoUrl}
+                  onChange={(e) => setRepoUrl(e.target.value)}
+                  className="w-full bg-transparent px-3 py-2.5 text-sm text-white placeholder-zinc-500 outline-none"
+                />
+
+                <button
+                  type="submit"
+                  disabled={loading || !repoUrl.trim()}
+                  className="flex shrink-0 items-center gap-2 rounded-lg bg-blue-600 px-5 py-2.5 text-xs font-semibold text-white shadow-sm transition hover:bg-blue-500 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {loading ? (
+                    <>
+                      <svg
+                        className="h-3.5 w-3.5 animate-spin text-white"
+                        fill="none"
+                        viewBox="0 0 24 24"
+                      >
+                        <circle
+                          className="opacity-25"
+                          cx="12"
+                          cy="12"
+                          r="10"
+                          stroke="currentColor"
+                          strokeWidth="4"
+                        />
+                        <path
+                          className="opacity-75"
+                          fill="currentColor"
+                          d="M4 12a8 8 0 018-8v8H4z"
+                        />
+                      </svg>
+                      <span>Analyzing...</span>
+                    </>
+                  ) : (
+                    <span>Analyze</span>
+                  )}
+                </button>
+              </form>
+
+              {/* Sample Chips */}
+              <div className="flex flex-wrap items-center justify-center gap-2 pt-1">
+                <span className="text-xs text-zinc-500">Try popular repos:</span>
+                {SAMPLE_REPOS.map((sample) => (
+                  <button
+                    key={sample.name}
+                    type="button"
+                    onClick={() => {
+                      setRepoUrl(sample.url);
+                      handleAnalyze(sample.url);
+                    }}
+                    className="rounded-full border border-zinc-800 bg-zinc-900/60 px-2.5 py-1 text-[11px] font-medium text-zinc-400 transition hover:border-zinc-700 hover:bg-zinc-800 hover:text-white"
+                  >
+                    {sample.name}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Error Message */}
+            {error && (
+              <div className="mx-auto mt-6 max-w-2xl rounded-xl border border-red-900/60 bg-red-950/40 p-4 text-left text-xs text-red-300">
+                <div className="flex items-center gap-2">
+                  <span>⚠️</span>
+                  <span>{error}</span>
+                </div>
+              </div>
             )}
           </div>
+        </section>
 
-          {/* Important Files */}
-          <div className="rounded-xl border border-zinc-800 bg-zinc-950 p-5">
-            <h5 className="text-lg font-semibold text-white">
-              📁 Important Files
-            </h5>
-            <div className="mt-4 space-y-3">
-              {analysis.importantFiles?.map(
-                (item: { file: string; purpose: string }) => (
-                  <div
-                    key={item.file}
-                    className="rounded-lg border border-zinc-800 p-4"
-                  >
-                    <p className="font-medium text-blue-400">
-                      {item.file}
-                    </p>
-                    <p className="mt-1 text-sm text-zinc-400">
-                      {item.purpose}
-                    </p>
+        {/* REPOSITORY DASHBOARD RESULT */}
+        {repoData ? (
+          <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6">
+            {/* 1. Repository Header Summary */}
+            <div className="rounded-xl border border-zinc-800/90 bg-zinc-900/60 p-5 shadow-lg backdrop-blur-md">
+              <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <div className="flex items-center gap-2.5">
+                    <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-600/20 text-sm font-bold text-blue-400 ring-1 ring-blue-500/30">
+                      📦
+                    </span>
+                    <h2 className="text-xl font-bold tracking-tight text-white">
+                      {repoData.name}
+                    </h2>
+                    <span className="rounded-full border border-zinc-700 bg-zinc-800 px-2.5 py-0.5 text-[11px] font-medium text-zinc-300">
+                      {repoData.defaultBranch || "main"}
+                    </span>
                   </div>
-                )
+                  <p className="mt-1 text-xs text-zinc-400 max-w-3xl">
+                    {repoData.description || "No description provided for this repository."}
+                  </p>
+                </div>
+
+                {/* Right badges & action */}
+                <div className="flex flex-wrap items-center gap-2">
+                  <div className="flex items-center gap-1.5 rounded-lg border border-zinc-800 bg-zinc-950 px-3 py-1.5 text-xs text-zinc-300">
+                    <span className="text-blue-400">●</span>
+                    <span>{repoData.language || "Unknown"}</span>
+                  </div>
+                  <div className="flex items-center gap-1.5 rounded-lg border border-zinc-800 bg-zinc-950 px-3 py-1.5 text-xs text-zinc-300">
+                    <span>⭐</span>
+                    <span>{repoData.stars?.toLocaleString()}</span>
+                  </div>
+                  <div className="flex items-center gap-1.5 rounded-lg border border-zinc-800 bg-zinc-950 px-3 py-1.5 text-xs text-zinc-300">
+                    <span>🍴</span>
+                    <span>{repoData.forks?.toLocaleString()}</span>
+                  </div>
+                  <a
+                    href={repoData.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center gap-1 rounded-lg bg-zinc-800 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-zinc-700"
+                  >
+                    <span>View on GitHub</span>
+                    <span>↗</span>
+                  </a>
+                </div>
+              </div>
+
+              {/* Technology Categories Bar */}
+              {technologies.length > 0 && (
+                <div className="mt-4 border-t border-zinc-800/80 pt-3 flex flex-wrap items-center gap-x-6 gap-y-2 text-xs">
+                  {technologyCategories.map(
+                    (cat) =>
+                      cat.values.length > 0 && (
+                        <div key={cat.name} className="flex items-center gap-2">
+                          <span className="text-[11px] font-semibold uppercase tracking-wider text-zinc-500">
+                            {cat.name}:
+                          </span>
+                          <div className="flex flex-wrap gap-1.5">
+                            {cat.values.map((val) => (
+                              <span
+                                key={val}
+                                className="rounded bg-blue-950/60 px-2 py-0.5 text-[11px] font-medium text-blue-300 ring-1 ring-blue-800/50"
+                              >
+                                {val}
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+                      )
+                  )}
+                </div>
               )}
             </div>
-          </div>
 
-          {/* Architecture */}
-          <div className="rounded-xl border border-zinc-800 bg-zinc-950 p-5">
-            <h5 className="text-lg font-semibold text-white">
-              🏗️ Architecture
-            </h5>
-            <p className="mt-3 leading-7 text-zinc-400">
-              {analysis.architecture.description}
-            </p>
-            <ArchitectureDiagram architecture={analysis.architecture} />
-          </div>
-
-          {/* Onboarding */}
-          <div className="rounded-xl border border-zinc-800 bg-zinc-950 p-5">
-            <h5 className="text-lg font-semibold text-white">
-              🚀 Start Here
-            </h5>
-            <div className="mt-5 space-y-4">
-              {analysis.onboardingGuide?.map(
-                (
-                  step: {
-                    file: string;
-                    title: string;
-                    description: string;
-                  },
-                  index: number
-                ) => (
-                  <div
-                    key={`${step.file}-${index}`}
-                    className="rounded-lg border border-zinc-800 p-4"
+            {/* 2. Main Two-Column Layout (Explorer + Code Viewer) */}
+            <div className="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-12">
+              {/* Left Column: Explorer (4 cols) */}
+              <div className="lg:col-span-4 flex flex-col space-y-3">
+                {/* Explorer Tabs */}
+                <div className="flex rounded-lg border border-zinc-800 bg-zinc-950 p-1">
+                  <button
+                    type="button"
+                    onClick={() => setActiveTab("tree")}
+                    className={`flex-1 rounded-md py-1.5 text-xs font-medium transition ${
+                      activeTab === "tree"
+                        ? "bg-zinc-800 text-white shadow-sm"
+                        : "text-zinc-400 hover:text-zinc-200"
+                    }`}
                   >
-                    <div className="flex items-start gap-3">
-                      <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-blue-950 text-sm font-semibold text-blue-400">
-                        {index + 1}
-                      </span>
+                    📁 Explorer
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setActiveTab("source")}
+                    className={`flex-1 rounded-md py-1.5 text-xs font-medium transition ${
+                      activeTab === "source"
+                        ? "bg-zinc-800 text-white shadow-sm"
+                        : "text-zinc-400 hover:text-zinc-200"
+                    }`}
+                  >
+                    📄 Source ({repoData.sourceFiles?.length || 0})
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setActiveTab("search")}
+                    className={`flex-1 rounded-md py-1.5 text-xs font-medium transition ${
+                      activeTab === "search"
+                        ? "bg-zinc-800 text-white shadow-sm"
+                        : "text-zinc-400 hover:text-zinc-200"
+                    }`}
+                  >
+                    🔍 Path
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setActiveTab("code_search")}
+                    className={`flex-1 rounded-md py-1.5 text-xs font-medium transition ${
+                      activeTab === "code_search"
+                        ? "bg-zinc-800 text-white shadow-sm"
+                        : "text-zinc-400 hover:text-zinc-200"
+                    }`}
+                  >
+                    🔎 Code
+                  </button>
+                </div>
 
-                      <div className="min-w-0">
-                        <h6 className="font-semibold text-white">
-                          {step.title}
-                        </h6>
+                {/* Explorer Panels */}
+                <div className="h-[540px]">
+                  {activeTab === "tree" && (
+                    <FileTree
+                      files={repoData.files || []}
+                      onSelectFile={handleFileSelect}
+                      selectedPath={selectedFile?.path}
+                    />
+                  )}
 
-                        <p className="mt-1 text-sm leading-6 text-zinc-400">
-                          {step.description}
-                        </p>
-
-                        <div className="mt-3 inline-flex rounded-md bg-zinc-900 px-3 py-1.5">
-                          <code className="text-xs text-blue-400">
-                            📄 {step.file}
-                          </code>
-                        </div>
-
-                        <a
-                          href={`https://github.com/${repoData.fullName}/blob/${repoData.defaultBranch}/${step.file}`}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="mt-3 block text-sm font-medium text-blue-400 hover:underline"
-                        >
-                          View on GitHub →
-                        </a>
+                  {activeTab === "source" && (
+                    <div className="flex h-full flex-col overflow-hidden rounded-xl border border-zinc-800/90 bg-zinc-950">
+                      <div className="border-b border-zinc-800/80 bg-zinc-900/40 px-3 py-2 text-xs font-semibold text-zinc-300">
+                        Analyzed Source Files
+                      </div>
+                      <div className="flex-1 overflow-y-auto p-1.5 space-y-1">
+                        {repoData.sourceFiles?.map(
+                          (file: { path: string; size: number }) => {
+                            const isSelected = selectedFile?.path === file.path;
+                            return (
+                              <button
+                                key={file.path}
+                                type="button"
+                                onClick={() => handleFileSelect(file.path)}
+                                className={`flex w-full items-center justify-between rounded-lg px-3 py-2 text-left text-xs transition ${
+                                  isSelected
+                                    ? "bg-blue-600/15 text-blue-300 ring-1 ring-blue-500/30"
+                                    : "text-zinc-300 hover:bg-zinc-900"
+                                }`}
+                              >
+                                <span className="truncate font-mono">{file.path}</span>
+                                <span className="text-[10px] text-zinc-500 shrink-0 ml-2">
+                                  {file.size ? `${(file.size / 1024).toFixed(1)}k` : ""}
+                                </span>
+                              </button>
+                            );
+                          }
+                        )}
                       </div>
                     </div>
+                  )}
+
+                  {activeTab === "search" && (
+                    <RepositorySearch
+                      files={repoData.files || []}
+                      onSelectFile={handleFileSelect}
+                      selectedPath={selectedFile?.path}
+                    />
+                  )}
+
+                  {activeTab === "code_search" && (
+                    <CodeSearch
+                      files={repoData.sourceFiles || []}
+                      onSelectFile={(file, lineNumber) => {
+                        setSelectedFile(file);
+                        setHighlightLine(lineNumber);
+                        setFileExplanation("");
+                      }}
+                      selectedPath={selectedFile?.path}
+                    />
+                  )}
+                </div>
+              </div>
+
+              {/* Right Column: Code Viewer + AI File Explanation (8 cols) */}
+              <div className="lg:col-span-8 flex flex-col space-y-4">
+                <div className="h-[585px]">
+                  <CodeViewer
+                    fileName={selectedFile?.path}
+                    content={selectedFile?.content}
+                    size={selectedFile?.size}
+                    htmlUrl={selectedFile?.htmlUrl}
+                    onExplain={explainFile}
+                    explaining={fileExplaining}
+                    highlightLine={highlightLine}
+                  />
+                </div>
+
+                {/* AI File Explanation Drawer */}
+                {(fileExplaining || fileExplanation) && (
+                  <div className="rounded-xl border border-zinc-800/90 bg-zinc-900/80 p-5 shadow-xl">
+                    <div className="flex items-center justify-between border-b border-zinc-800 pb-3">
+                      <div className="flex items-center gap-2">
+                        <span className="text-base">🤖</span>
+                        <h4 className="text-sm font-semibold text-white">
+                          AI File Explanation
+                        </h4>
+                        <span className="rounded bg-zinc-800 px-2 py-0.5 font-mono text-[10px] text-zinc-400">
+                          {selectedFile?.path}
+                        </span>
+                      </div>
+                      <button
+                        onClick={() => setFileExplanation("")}
+                        className="text-xs text-zinc-500 hover:text-zinc-300"
+                      >
+                        ✕ Close
+                      </button>
+                    </div>
+
+                    <div className="mt-4">
+                      {fileExplaining ? (
+                        <div className="flex items-center gap-3 py-6 text-xs text-zinc-400">
+                          <svg
+                            className="h-4 w-4 animate-spin text-blue-500"
+                            fill="none"
+                            viewBox="0 0 24 24"
+                          >
+                            <circle
+                              className="opacity-25"
+                              cx="12"
+                              cy="12"
+                              r="10"
+                              stroke="currentColor"
+                              strokeWidth="4"
+                            />
+                            <path
+                              className="opacity-75"
+                              fill="currentColor"
+                              d="M4 12a8 8 0 018-8v8H4z"
+                            />
+                          </svg>
+                          <span>Generating AI explanation for {selectedFile?.path}...</span>
+                        </div>
+                      ) : (
+                        <MarkdownRenderer content={fileExplanation} />
+                      )}
+                    </div>
                   </div>
-                )
+                )}
+              </div>
+            </div>
+
+            {/* 3. AI Repository Technical Overview Section */}
+            <div className="mt-12 rounded-2xl border border-zinc-800/90 bg-zinc-950 p-6 sm:p-8 shadow-2xl">
+              <div className="flex flex-col gap-1 border-b border-zinc-800 pb-5">
+                <div className="flex items-center gap-2">
+                  <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-blue-600/20 text-sm text-blue-400 ring-1 ring-blue-500/30">
+                    ✨
+                  </span>
+                  <h3 className="text-xl font-bold tracking-tight text-white">
+                    AI Repository Explanation
+                  </h3>
+                </div>
+                <p className="text-xs text-zinc-400">
+                  AI-generated technical architecture, components overview, and onboarding roadmap.
+                </p>
+              </div>
+
+              {aiLoading ? (
+                <div className="flex flex-col items-center justify-center py-16 text-center">
+                  <div className="flex h-12 w-12 items-center justify-center rounded-full bg-blue-600/10 text-xl text-blue-400 animate-pulse">
+                    🤖
+                  </div>
+                  <p className="mt-4 text-sm font-medium text-zinc-200">
+                    Gemini AI is analyzing codebase architecture...
+                  </p>
+                  <p className="mt-1 text-xs text-zinc-500">
+                    Parsing dependencies, components, and code relationships
+                  </p>
+                </div>
+              ) : analysis ? (
+                <div className="mt-8 space-y-8">
+                  {/* Overview */}
+                  <div className="rounded-xl border border-zinc-800/80 bg-zinc-900/40 p-5">
+                    <h4 className="text-sm font-semibold uppercase tracking-wider text-zinc-400">
+                      📋 Repository Overview
+                    </h4>
+                    <p className="mt-3 text-sm leading-7 text-zinc-300">
+                      {analysis.overview}
+                    </p>
+                  </div>
+
+                  {/* Architecture Diagram */}
+                  {analysis.architecture && (
+                    <div className="rounded-xl border border-zinc-800/80 bg-zinc-900/40 p-5">
+                      <h4 className="text-sm font-semibold uppercase tracking-wider text-zinc-400">
+                        🏗️ Architecture & Component Flow
+                      </h4>
+                      <p className="mt-2 text-xs leading-6 text-zinc-400">
+                        {analysis.architecture.description}
+                      </p>
+                      <ArchitectureDiagram architecture={analysis.architecture} />
+                    </div>
+                  )}
+
+                  {/* Important Files Grid */}
+                  {analysis.importantFiles && analysis.importantFiles.length > 0 && (
+                    <div className="rounded-xl border border-zinc-800/80 bg-zinc-900/40 p-5">
+                      <h4 className="text-sm font-semibold uppercase tracking-wider text-zinc-400">
+                        📁 Key Files & Purpose
+                      </h4>
+                      <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
+                        {analysis.importantFiles.map(
+                          (item: { file: string; purpose: string }) => (
+                            <div
+                              key={item.file}
+                              className="rounded-lg border border-zinc-800/80 bg-zinc-950/60 p-3.5 transition hover:border-zinc-700"
+                            >
+                              <p className="font-mono text-xs font-semibold text-blue-400">
+                                {item.file}
+                              </p>
+                              <p className="mt-1 text-xs text-zinc-400 leading-relaxed">
+                                {item.purpose}
+                              </p>
+                            </div>
+                          )
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Onboarding Guide */}
+                  {analysis.onboardingGuide && analysis.onboardingGuide.length > 0 && (
+                    <div className="rounded-xl border border-zinc-800/80 bg-zinc-900/40 p-5">
+                      <h4 className="text-sm font-semibold uppercase tracking-wider text-zinc-400">
+                        🚀 Start Here Onboarding Guide
+                      </h4>
+                      <div className="mt-4 space-y-3">
+                        {analysis.onboardingGuide.map(
+                          (
+                            step: {
+                              file: string;
+                              title: string;
+                              description: string;
+                            },
+                            index: number
+                          ) => (
+                            <div
+                              key={`${step.file}-${index}`}
+                              className="flex items-start gap-3 rounded-lg border border-zinc-800/80 bg-zinc-950/60 p-4"
+                            >
+                              <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-blue-600/20 text-xs font-bold text-blue-400 ring-1 ring-blue-500/40">
+                                {index + 1}
+                              </span>
+                              <div className="min-w-0 flex-1">
+                                <h5 className="text-xs font-semibold text-white">
+                                  {step.title}
+                                </h5>
+                                <p className="mt-1 text-xs text-zinc-400 leading-relaxed">
+                                  {step.description}
+                                </p>
+                                <div className="mt-2 flex items-center gap-3">
+                                  <button
+                                    type="button"
+                                    onClick={() => handleFileSelect(step.file)}
+                                    className="inline-flex items-center gap-1 font-mono text-[11px] text-blue-400 hover:underline"
+                                  >
+                                    <span>📄 {step.file}</span>
+                                    <span>→</span>
+                                  </button>
+                                </div>
+                              </div>
+                            </div>
+                          )
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              ) : aiAnswer ? (
+                <div className="mt-6">
+                  <MarkdownRenderer content={aiAnswer} />
+                </div>
+              ) : (
+                <div className="mt-6 rounded-lg bg-zinc-900/40 p-4 text-xs text-zinc-500 text-center">
+                  No AI explanation generated yet.
+                </div>
               )}
             </div>
           </div>
-        </div>
-      )}
+        ) : (
+          /* Feature Cards (Landing State) */
+          <section className="mx-auto max-w-5xl px-4 py-16 sm:px-6">
+            <div className="grid grid-cols-1 gap-6 sm:grid-cols-3">
+              <div className="rounded-xl border border-zinc-800/80 bg-zinc-900/40 p-6 shadow-sm transition hover:border-zinc-700">
+                <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-blue-600/10 text-xl text-blue-400">
+                  📋
+                </div>
+                <h3 className="mt-4 text-sm font-semibold text-white">
+                  Repository Overview
+                </h3>
+                <p className="mt-2 text-xs leading-relaxed text-zinc-400">
+                  Detects project architecture, languages, runtime frameworks, and libraries automatically.
+                </p>
+              </div>
 
-      {aiLoading ? (
-        <div className="mt-4 rounded-lg bg-zinc-950 p-5 text-zinc-400">
-          🤖 AI is analyzing this repository...
+              <div className="rounded-xl border border-zinc-800/80 bg-zinc-900/40 p-6 shadow-sm transition hover:border-zinc-700">
+                <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-blue-600/10 text-xl text-blue-400">
+                  🏗️
+                </div>
+                <h3 className="mt-4 text-sm font-semibold text-white">
+                  Interactive Architecture
+                </h3>
+                <p className="mt-2 text-xs leading-relaxed text-zinc-400">
+                  Generates interactive ReactFlow visual maps showing how system components connect.
+                </p>
+              </div>
+
+              <div className="rounded-xl border border-zinc-800/80 bg-zinc-900/40 p-6 shadow-sm transition hover:border-zinc-700">
+                <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-blue-600/10 text-xl text-blue-400">
+                  🚀
+                </div>
+                <h3 className="mt-4 text-sm font-semibold text-white">
+                  Start Here Guide
+                </h3>
+                <p className="mt-2 text-xs leading-relaxed text-zinc-400">
+                  Step-by-step onboarding walkthrough highlighting the most crucial files for new contributors.
+                </p>
+              </div>
+            </div>
+          </section>
+        )}
+      </main>
+
+      {/* Footer */}
+      <footer className="border-t border-zinc-800/80 bg-zinc-950 py-6 text-center text-xs text-zinc-500">
+        <div className="mx-auto max-w-7xl px-4 sm:px-6">
+          <p>© {new Date().getFullYear()} GitHub Repository Explainer • Powered by Next.js & Gemini AI</p>
         </div>
-      ) : analysis ? null : aiAnswer ? (
-        <div className="mt-4 whitespace-pre-wrap rounded-lg bg-zinc-950 p-5 text-left text-sm leading-7 text-zinc-300">
-          {aiAnswer}
-        </div>
-      ) : (
-        <div className="mt-4 rounded-lg bg-zinc-950 p-5 text-zinc-500">
-          No AI explanation available yet.
-        </div>
-      )}
+      </footer>
     </div>
-  </div>
-)}
-        </div>
-
-        {/* Features */}
-        <div className="mt-16 grid w-full max-w-3xl gap-4 sm:grid-cols-3">
-          <div className="rounded-xl border border-zinc-800 bg-zinc-900 p-5">
-            <div className="mb-3 text-2xl">📋</div>
-            <h3 className="font-semibold">Repository Overview</h3>
-            <p className="mt-2 text-sm text-zinc-400">
-              Understand what the project does and which technologies it uses.
-            </p>
-          </div>
-
-          <div className="rounded-xl border border-zinc-800 bg-zinc-900 p-5">
-            <div className="mb-3 text-2xl">🏗️</div>
-            <h3 className="font-semibold">Architecture</h3>
-            <p className="mt-2 text-sm text-zinc-400">
-              Discover how the different parts of the application connect.
-            </p>
-          </div>
-
-          <div className="rounded-xl border border-zinc-800 bg-zinc-900 p-5">
-            <div className="mb-3 text-2xl">🚀</div>
-            <h3 className="font-semibold">Start Here Guide</h3>
-            <p className="mt-2 text-sm text-zinc-400">
-              Get a simple guide for understanding an unfamiliar codebase.
-            </p>
-          </div>
-        </div>
-      </section>
-    </main>
   );
 }
