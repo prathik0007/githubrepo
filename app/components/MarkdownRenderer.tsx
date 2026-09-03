@@ -60,7 +60,6 @@ export default function MarkdownRenderer({
   }
 
   const parseInline = (text: string): React.ReactNode[] => {
-    // Parse inline code, bold, italic
     const parts: React.ReactNode[] = [];
     let remaining = text;
     let key = 0;
@@ -106,7 +105,7 @@ export default function MarkdownRenderer({
           parts.push(
             <code
               key={key++}
-              className="rounded bg-zinc-800/80 px-1.5 py-0.5 font-mono text-xs font-medium text-blue-300 ring-1 ring-zinc-700/50"
+              className="rounded bg-zinc-800/90 px-1.5 py-0.5 font-mono text-xs font-medium text-blue-300 ring-1 ring-zinc-700/50"
             >
               {matchPayload}
             </code>
@@ -145,6 +144,7 @@ export default function MarkdownRenderer({
     const rawLines = text.split("\n");
     const elements: React.ReactNode[] = [];
     let currentList: { type: "ul" | "ol"; items: string[] } | null = null;
+    let currentTable: string[][] | null = null;
 
     const flushList = () => {
       if (currentList) {
@@ -173,12 +173,72 @@ export default function MarkdownRenderer({
       }
     };
 
+    const flushTable = () => {
+      if (currentTable && currentTable.length > 0) {
+        const headerRow = currentTable[0];
+        const bodyRows = currentTable.slice(1).filter((r) => !r.every((c) => /^[-:\s|]+$/.test(c)));
+
+        elements.push(
+          <div key={`table-${elements.length}`} className="my-4 overflow-x-auto rounded-lg border border-zinc-800">
+            <table className="w-full text-left text-xs">
+              <thead className="bg-zinc-900/80 border-b border-zinc-800 text-zinc-300 font-semibold">
+                <tr>
+                  {headerRow.map((cell, ci) => (
+                    <th key={ci} className="px-3.5 py-2.5">
+                      {parseInline(cell)}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-zinc-800/60 bg-zinc-950">
+                {bodyRows.map((row, ri) => (
+                  <tr key={ri} className="hover:bg-zinc-900/30">
+                    {row.map((cell, ci) => (
+                      <td key={ci} className="px-3.5 py-2 text-zinc-300">
+                        {parseInline(cell)}
+                      </td>
+                    ))}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        );
+        currentTable = null;
+      }
+    };
+
     for (let i = 0; i < rawLines.length; i++) {
       const line = rawLines[i].trim();
 
       if (!line) {
         flushList();
+        flushTable();
         continue;
+      }
+
+      // Horizontal separator line (--- or ***)
+      if (line === "---" || line === "***" || line === "___") {
+        flushList();
+        flushTable();
+        elements.push(<hr key={`hr-${i}`} className="my-6 border-zinc-800" />);
+        continue;
+      }
+
+      // Table row (| ... |)
+      if (line.startsWith("|") && line.endsWith("|")) {
+        flushList();
+        const cells = line
+          .slice(1, -1)
+          .split("|")
+          .map((c) => c.trim());
+        if (!currentTable) {
+          currentTable = [];
+        }
+        currentTable.push(cells);
+        continue;
+      } else {
+        flushTable();
       }
 
       // Heading 1 (# ...)
@@ -235,26 +295,53 @@ export default function MarkdownRenderer({
       }
 
       // Ordered list (1. ...)
-      const olMatch = line.match(/^\d+\.\s+(.+)/);
+      const olMatch = line.match(/^(\d+)\.\s+(.+)/);
       if (olMatch) {
+        // If line is like "1. What this file does" with bold or title format, treat it as a highlighted sub-heading if followed by content
+        const itemContent = olMatch[2];
+        if (
+          !currentList &&
+          (itemContent.startsWith("**") ||
+            itemContent.includes("What this file does") ||
+            itemContent.includes("main responsibilities") ||
+            itemContent.includes("responsibilities") ||
+            itemContent.includes("connects to") ||
+            itemContent.includes("beginner should understand"))
+        ) {
+          flushList();
+          elements.push(
+            <h4
+              key={`h4-${i}`}
+              className="mt-5 mb-2 text-sm font-semibold tracking-wide text-blue-400 first:mt-0"
+            >
+              <span className="mr-1.5 inline-flex h-5 w-5 items-center justify-center rounded-full bg-blue-950 text-xs font-bold text-blue-400 ring-1 ring-blue-800/50">
+                {olMatch[1]}
+              </span>
+              {parseInline(itemContent.replace(/^\*\*/, "").replace(/\*\*$/, ""))}
+            </h4>
+          );
+          continue;
+        }
+
         if (!currentList || currentList.type !== "ol") {
           flushList();
           currentList = { type: "ol", items: [] };
         }
-        currentList.items.push(olMatch[1]);
+        currentList.items.push(itemContent);
         continue;
       }
 
       // Regular paragraph
       flushList();
       elements.push(
-        <p key={`p-${i}`} className="my-2 text-sm leading-relaxed text-zinc-300">
+        <p key={`p-${i}`} className="my-2.5 text-sm leading-7 text-zinc-300">
           {parseInline(line)}
         </p>
       );
     }
 
     flushList();
+    flushTable();
 
     return <div key={`block-${blockIndex}`}>{elements}</div>;
   };

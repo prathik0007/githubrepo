@@ -188,6 +188,13 @@ Explain:
     setFileExplaining(true);
     setFileExplanation("");
 
+    // Scroll to the full-width file explanation section
+    setTimeout(() => {
+      document
+        .getElementById("ai-file-explanation-section")
+        ?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }, 100);
+
     try {
       const response = await fetch("/api/analyze", {
         method: "POST",
@@ -433,7 +440,7 @@ Please explain:
 
         {/* REPOSITORY DASHBOARD RESULT */}
         {repoData ? (
-          <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6">
+          <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 space-y-8">
             {/* 1. Repository Header Summary */}
             <div className="rounded-xl border border-zinc-800/90 bg-zinc-900/60 p-5 shadow-lg backdrop-blur-md">
               <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
@@ -508,7 +515,7 @@ Please explain:
             </div>
 
             {/* 2. Main Two-Column Layout (Explorer + Code Viewer) */}
-            <div className="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-12">
+            <div className="grid grid-cols-1 gap-6 lg:grid-cols-12">
               {/* Left Column: Explorer (4 cols) */}
               <div className="lg:col-span-4 flex flex-col space-y-3">
                 {/* Explorer Tabs */}
@@ -623,8 +630,8 @@ Please explain:
                 </div>
               </div>
 
-              {/* Right Column: Code Viewer + AI File Explanation (8 cols) */}
-              <div className="lg:col-span-8 flex flex-col space-y-4">
+              {/* Right Column: Code Viewer (8 cols) */}
+              <div className="lg:col-span-8">
                 <div className="h-[585px]">
                   <CodeViewer
                     fileName={selectedFile?.path}
@@ -636,63 +643,11 @@ Please explain:
                     highlightLine={highlightLine}
                   />
                 </div>
-
-                {/* AI File Explanation Drawer */}
-                {(fileExplaining || fileExplanation) && (
-                  <div className="rounded-xl border border-zinc-800/90 bg-zinc-900/80 p-5 shadow-xl">
-                    <div className="flex items-center justify-between border-b border-zinc-800 pb-3">
-                      <div className="flex items-center gap-2">
-                        <span className="text-base">🤖</span>
-                        <h4 className="text-sm font-semibold text-white">
-                          AI File Explanation
-                        </h4>
-                        <span className="rounded bg-zinc-800 px-2 py-0.5 font-mono text-[10px] text-zinc-400">
-                          {selectedFile?.path}
-                        </span>
-                      </div>
-                      <button
-                        onClick={() => setFileExplanation("")}
-                        className="text-xs text-zinc-500 hover:text-zinc-300"
-                      >
-                        ✕ Close
-                      </button>
-                    </div>
-
-                    <div className="mt-4">
-                      {fileExplaining ? (
-                        <div className="flex items-center gap-3 py-6 text-xs text-zinc-400">
-                          <svg
-                            className="h-4 w-4 animate-spin text-blue-500"
-                            fill="none"
-                            viewBox="0 0 24 24"
-                          >
-                            <circle
-                              className="opacity-25"
-                              cx="12"
-                              cy="12"
-                              r="10"
-                              stroke="currentColor"
-                              strokeWidth="4"
-                            />
-                            <path
-                              className="opacity-75"
-                              fill="currentColor"
-                              d="M4 12a8 8 0 018-8v8H4z"
-                            />
-                          </svg>
-                          <span>Generating AI explanation for {selectedFile?.path}...</span>
-                        </div>
-                      ) : (
-                        <MarkdownRenderer content={fileExplanation} />
-                      )}
-                    </div>
-                  </div>
-                )}
               </div>
             </div>
 
-            {/* 3. AI Repository Technical Overview Section */}
-            <div className="mt-12 rounded-2xl border border-zinc-800/90 bg-zinc-950 p-6 sm:p-8 shadow-2xl">
+            {/* 3. AI Repository Technical Overview Section (Full Width) */}
+            <div className="rounded-2xl border border-zinc-800/90 bg-zinc-950 p-6 sm:p-8 shadow-2xl">
               <div className="flex flex-col gap-1 border-b border-zinc-800 pb-5">
                 <div className="flex items-center gap-2">
                   <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-blue-600/20 text-sm text-blue-400 ring-1 ring-blue-500/30">
@@ -828,6 +783,68 @@ Please explain:
                 </div>
               )}
             </div>
+
+            {/* 4. AI File Explanation Section (Full Width) */}
+            {(fileExplaining || fileExplanation) && (
+              <div
+                id="ai-file-explanation-section"
+                className="rounded-2xl border border-zinc-800/90 bg-zinc-950 p-6 sm:p-8 shadow-2xl transition-all"
+              >
+                {/* Header */}
+                <div className="flex flex-col gap-2 border-b border-zinc-800 pb-5 sm:flex-row sm:items-center sm:justify-between">
+                  <div className="flex items-center gap-3">
+                    <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-600/20 text-base text-blue-400 ring-1 ring-blue-500/30">
+                      🤖
+                    </span>
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <h3 className="text-xl font-bold tracking-tight text-white">
+                          AI File Explanation
+                        </h3>
+                        <span className="rounded-md border border-zinc-700 bg-zinc-900 px-2.5 py-0.5 font-mono text-xs text-blue-400">
+                          {selectedFile?.path}
+                        </span>
+                      </div>
+                      <p className="mt-0.5 text-xs text-zinc-400">
+                        In-depth technical breakdown of responsibilities, key functions, and project role.
+                      </p>
+                    </div>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => setFileExplanation("")}
+                    className="self-start rounded-lg border border-zinc-800 bg-zinc-900 px-3 py-1.5 text-xs font-medium text-zinc-400 transition hover:border-zinc-700 hover:bg-zinc-800 hover:text-white sm:self-center"
+                  >
+                    ✕ Close Explanation
+                  </button>
+                </div>
+
+                {/* Content */}
+                <div className="mt-6">
+                  {fileExplaining ? (
+                    <div className="flex flex-col items-center justify-center py-16 text-center">
+                      <div className="flex h-12 w-12 items-center justify-center rounded-full bg-blue-600/10 text-xl text-blue-400 animate-pulse">
+                        ⚙️
+                      </div>
+                      <p className="mt-4 text-sm font-medium text-zinc-200">
+                        Analyzing {selectedFile?.path}...
+                      </p>
+                      <p className="mt-1 text-xs text-zinc-500">
+                        Extracting responsibilities, functions, methods, and architectural context
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="rounded-xl border border-zinc-800/80 bg-zinc-900/30 p-6 sm:p-8">
+                      <MarkdownRenderer
+                        content={fileExplanation}
+                        className="leading-relaxed"
+                      />
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
           </div>
         ) : (
           /* Feature Cards (Landing State) */
